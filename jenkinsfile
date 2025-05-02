@@ -22,7 +22,7 @@ pipeline {
                     sh '''
                         aws lambda create-function \
                         --function-name $FUNCTION_NAME \
-                        --runtime python3.12 \
+                        --runtime python3.13 \
                         --role arn:aws:iam::529088259986:role/service-role/mylambda-s3-access \
                         --handler lambda_function.lambda_handler \
                         --zip-file fileb://$ZIP_FILE \
