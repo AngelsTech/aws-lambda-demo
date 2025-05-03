@@ -8,6 +8,12 @@ pipeline {
     }
 
     stages {
+      stage('Clone Repository') {
+            steps {
+                git branch: 'checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0', url: 'https://github.com/AngelsTech/aws-lambda-demo.git']])'
+            }
+        }
+
         stage('Prepare') {
             steps {
                 script {
