@@ -6,7 +6,11 @@ pipeline {
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
     }
-
+    withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
+                  accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                  secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
+                  credentialsId: 'lambda-function-aws-cred']]) {
+  }
     stages {
       stage('Clone Repository') {
             steps {
