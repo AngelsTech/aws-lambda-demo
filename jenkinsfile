@@ -16,7 +16,7 @@ pipeline {
      stage('Prepare') {
             steps {
                 script {
-                    sh 'zip -r lambda.zip lambda_function.py'
+                    sh 'zip -r lambda.zip test_lambdaFunction.py"'
                 }
             }
         }
@@ -29,7 +29,7 @@ pipeline {
                         --function-name $FUNCTION_NAME \
                         --runtime python3.13 \
                         --role arn:aws:iam::529088259986:role/service-role/mylambda-s3-access \
-                        --handler lambda_function.lambda_handler \
+                        --handler test_lambdaFunction.lambda_handler \
                         --zip-file fileb://$ZIP_FILE \
                         --region $REGION || true
 
