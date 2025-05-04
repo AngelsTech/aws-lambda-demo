@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        FUNCTION_NAME = 'hello-world-myfirst-lambda'
+        FUNCTION_NAME = 'hello-world-lambda'
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
     
