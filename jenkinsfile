@@ -5,11 +5,7 @@ pipeline {
         FUNCTION_NAME = 'hello-world-lambda'
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
-       withCredentials([[$class: 'AmazonWebServicesCredentialsBinding',
-                  accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                  secretKeyVariable: 'AWS_SECRET_ACCESS_KEY',
-                  credentialsId: 'lambda-function-aws-cred']]) {
-        } 
+    
     }
   
     stages {
@@ -29,6 +25,12 @@ pipeline {
         stage('Deploy Lambda') {
             steps {
                 script {
+                  withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'lambda-function-aws-cred',
+                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+                ]]) {
                     sh '''
                         aws lambda create-function \
                         --function-name $FUNCTION_NAME \
