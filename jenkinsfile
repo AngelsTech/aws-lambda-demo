@@ -52,6 +52,12 @@ pipeline {
        stage('Setup CloudWatch Schedule') {
             steps {
                 script {
+                  withCredentials([[
+                    $class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'lambda-function-aws-cred',
+                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+                    ]]) {
                     sh '''
                         aws events put-rule \
                         --schedule-expression "rate(15 minutes)" \
@@ -74,4 +80,5 @@ pipeline {
             }
         }
     }
- }
+  }
+}
