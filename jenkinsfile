@@ -30,7 +30,7 @@ pipeline {
                     credentialsId: 'lambda-function-aws-cred',
                     accessKeyVariable: 'AWS_ACCESS_KEY_ID',
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                ]]) {
+                    ]]) {
                     sh '''
                         aws lambda create-function \
                         --function-name $FUNCTION_NAME \
@@ -45,11 +45,11 @@ pipeline {
                         --zip-file fileb://$ZIP_FILE \
                         --region $REGION
                     '''
-                }
-            }
-        }
-
-        stage('Setup CloudWatch Schedule') {
+                  }
+              }
+          }
+       }
+       stage('Setup CloudWatch Schedule') {
             steps {
                 script {
                     sh '''
