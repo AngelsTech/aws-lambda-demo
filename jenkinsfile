@@ -4,7 +4,7 @@ pipeline {
     environment {
         FUNCTION_NAME = 'hello-world-lambda'
         REGION = 'us-east-1'
-        ZIP_FILE = 'lambda.zip'
+        ZIP_FILE = 'test_lambdaFunction.zip'
     }
 
     stages {
@@ -16,7 +16,7 @@ pipeline {
      stage('Prepare') {
             steps {
                 script {
-                    sh 'zip -r lambda.zip test_lambdaFunction.py"'
+                    sh 'zip -r test_lambdaFunction.zip test_lambdaFunction.py"'
                 }
             }
         }
