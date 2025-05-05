@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        FUNCTION_NAME = 'hello-world-lambda'
+        FUNCTION_NAME = 'hi-world-lambda'
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
     
@@ -69,12 +69,12 @@ pipeline {
                         --statement-id hello-event \
                         --action 'lambda:InvokeFunction' \
                         --principal events.amazonaws.com \
-                        --source-arn arn:aws:lambda:us-east-1:529088259986:function:hello-world-lambda \
+                       // --source-arn arn:aws:lambda:us-east-1:529088259986:function:hello-world-lambda \
                         --region $REGION || true
 
                         aws events put-targets \
                         --rule hello-schedule \
-                        --targets Id=1,Arn=arn:aws:lambda:us-east-1:529088259986:function:hello-world-lambda \
+                      //  --targets Id=1,Arn=arn:aws:lambda:us-east-1:529088259986:function:hello-world-lambda \
                         --region us-east-1
                      '''
                 }
