@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        FUNCTION_NAME = 'hi-world-firstlambda'
+        FUNCTION_NAME = 'hi-world-first_lambda'
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
     
@@ -22,36 +22,36 @@ pipeline {
             }
         }
 
-        stage('Deploy Lambda') {
-            steps {
-                script {
-                  withCredentials([[
-                    $class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'lambda-function-aws-cred',
-                    accessKeyVariable: 'AWS_ACCESS_KEY_ID',
-                    secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
-                    ]]) {
-                    sh '''
-                      aws lambda create-function \
-                      --function-name $FUNCTION_NAME \
-                      --runtime python3.13 \
-                      --role arn:aws:iam::529088259986:role/service-role/s3_execRole \
-                      --handler lambda_function.lambda_handler \
-                      --zip-file fileb://$ZIP_FILE \
-                      --region $REGION || true
+   stage('Deploy Lambda') {
+     steps {
+        script {
+             withCredentials([[
+             $class: 'AmazonWebServicesCredentialsBinding',
+             credentialsId: 'lambda-function-aws-cred',
+             accessKeyVariable: 'AWS_ACCESS_KEY_ID',
+             secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
+             ]]) {
+             sh '''
+                aws lambda create-function \
+                --function-name $FUNCTION_NAME \
+                --runtime python3.13 \
+                --role arn:aws:iam::529088259986:role/service-role/s3_execRole \
+                --handler lambda_function.lambda_handler \
+                --zip-file fileb://$ZIP_FILE \
+                --region $REGION || true
 
-                   echo "Waiting for Lambda function to become Active..."
-                   while true; do
-                     STATUS=$(aws lambda get-function-configuration \
-                       --function-name $FUNCTION_NAME \
-                       --region $REGION \
-                       --query 'State' --output text)
-                     echo "Current status: $STATUS"
-                     if [ "$STATUS" = "Active" ]; then
+                echo "Waiting for Lambda function to become Active..."
+                while true; do
+                    STATUS=$(aws lambda get-function-configuration \
+                      --function-name $FUNCTION_NAME \
+                      --region $REGION \
+                      --query 'State' --output text)
+                    echo "Current status: $STATUS"
+                    if [ "$STATUS" = "Active" ]; then
                       break
-                     fi
-                      sleep 5
-               done
+                    fi
+                     sleep 5
+            done
                aws lambda update-function-code \
                --function-name $FUNCTION_NAME \
                --zip-file fileb://$ZIP_FILE \
