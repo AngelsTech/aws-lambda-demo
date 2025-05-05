@@ -32,7 +32,6 @@ pipeline {
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                     ]]) {
                     sh '''
-                    sh '''
                       aws lambda create-function \
                       --function-name $FUNCTION_NAME \
                       --runtime python3.13 \
