@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        FUNCTION_NAME = 'hi-world-myambda'
+        FUNCTION_NAME = 'hi-world-firstlambda'
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
     
@@ -32,33 +32,33 @@ pipeline {
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                     ]]) {
                     sh '''
-                       aws lambda create-function \
-                       --function-name $FUNCTION_NAME \
-                       --runtime python3.13 \
-                       --role arn:aws:iam::529088259986:role/service-role/s3_execRole \
-                       --handler lambda_function.lambda_handler \
-                       --zip-file fileb://$ZIP_FILE \
-                       --region $REGION || true
+                    sh '''
+                      aws lambda create-function \
+                      --function-name $FUNCTION_NAME \
+                      --runtime python3.13 \
+                      --role arn:aws:iam::529088259986:role/service-role/s3_execRole \
+                      --handler lambda_function.lambda_handler \
+                      --zip-file fileb://$ZIP_FILE \
+                      --region $REGION || true
 
-                    echo "Waiting for Lambda function to become Active..."
-                    while true; do
-                      STATUS=$(aws lambda get-function-configuration \
-                        --function-name $FUNCTION_NAME \
-                        --region $REGION \
-                        --query 'State' --output text)
+                   echo "Waiting for Lambda function to become Active..."
+                   while true; do
+                     STATUS=$(aws lambda get-function-configuration \
+                       --function-name $FUNCTION_NAME \
+                       --region $REGION \
+                       --query 'State' --output text)
                      echo "Current status: $STATUS"
                      if [ "$STATUS" = "Active" ]; then
-                        break
+                      break
                      fi
                       sleep 5
-                    done
-
-                    aws lambda update-function-code \
-                    --function-name $FUNCTION_NAME \
-                    --zip-file fileb://$ZIP_FILE \
-                    --region $REGION
-                  '''
-                  }
+               done
+               aws lambda update-function-code \
+               --function-name $FUNCTION_NAME \
+               --zip-file fileb://$ZIP_FILE \
+               --region $REGION
+            '''
+                }
               }
           }
        }
