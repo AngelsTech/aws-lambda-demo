@@ -47,7 +47,7 @@ pipeline {
                         --region $REGION \
                         --query 'State' --output text)
                      echo "Current status: $STATUS"
-                     if [ "$STATUS" == "Active" ]; then
+                     if [ "$STATUS" = "Active" ]; then
                         break
                      fi
                       sleep 5
