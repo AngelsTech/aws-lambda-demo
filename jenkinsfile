@@ -8,13 +8,13 @@ pipeline {
     
     }
   
-    stages {
+   stages {
       stage('Clone Repository') {
             steps {
                 git branch: 'main', credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0', url: 'https://github.com/AngelsTech/aws-lambda-demo.git'
             }
         }
-     stage('Prepare') {
+      stage('Prepare') {
             steps {
                 script {
                     sh 'zip -r lambda.zip lambda_function.py'
@@ -22,9 +22,9 @@ pipeline {
             }
         }
 
-   stage('Deploy Lambda') {
-     steps {
-        script {
+      stage('Deploy Lambda') {
+        steps {
+          script {
              withCredentials([[
              $class: 'AmazonWebServicesCredentialsBinding',
              credentialsId: 'lambda-function-aws-cred',
@@ -51,17 +51,17 @@ pipeline {
                       break
                     fi
                      sleep 5
-            done
+              done
                aws lambda update-function-code \
                --function-name $FUNCTION_NAME \
                --zip-file fileb://$ZIP_FILE \
                --region $REGION
             '''
-                }
               }
-          }
-       }
-       stage('Setup CloudWatch Schedule') {
+            }
+        }
+      } 
+      stage('Setup CloudWatch Schedule') {
             steps {
                 script {
                   withCredentials([[
@@ -76,13 +76,6 @@ pipeline {
                         --name hello-schedule \
                         --region $REGION
 
-                       # aws lambda add-permission \
-                       # --function-name $FUNCTION_NAME \
-                       # --statement-id hello-event \
-                        #  --action 'lambda:InvokeFunction' \
-                        # --principal events.amazonaws.com \
-                        # --source-arn arn:aws:lambda:us-east-1:529088259986:function:hello-world-lambda \
-                       # --region $REGION || true
                        aws lambda add-permission \
                        --function-name hi-world-first_lambda125 \
                        --statement-id hello-event \
