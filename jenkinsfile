@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        FUNCTION_NAME = 'hi-world-first_lambda123'
+        FUNCTION_NAME = 'hi-world-first_lambda124'
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
     
@@ -76,13 +76,19 @@ pipeline {
                         --name hello-schedule \
                         --region $REGION
 
-                        aws lambda add-permission \
-                        --function-name $FUNCTION_NAME \
-                        --statement-id hello-event \
-                        --action 'lambda:InvokeFunction' \
-                        --principal events.amazonaws.com \
+                       # aws lambda add-permission \
+                       # --function-name $FUNCTION_NAME \
+                       # --statement-id hello-event \
+                        #  --action 'lambda:InvokeFunction' \
+                        # --principal events.amazonaws.com \
                         # --source-arn arn:aws:lambda:us-east-1:529088259986:function:hello-world-lambda \
-                        --region $REGION || true
+                       # --region $REGION || true
+                       aws lambda add-permission \
+                       --function-name hi-world-first_lambda124 \
+                       --statement-id hello-event \
+                       --action lambda:InvokeFunction \
+                       --principal events.amazonaws.com \
+                       --region us-east-1
 
                         aws events put-targets \
                         --rule hello-schedule \
