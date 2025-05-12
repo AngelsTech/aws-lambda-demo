@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        FUNCTION_NAME = 'hi-world-first_lambdatest'
+        FUNCTION_NAME = 'hey-world-first_lambdatest'
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
         ARN_FILE = 'lambda_arn.txt'
@@ -11,18 +11,20 @@ pipeline {
     stages {
         stage('Clone Repository') {
             steps {
-                git branch: 'main',
-                    credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0',
-                    url: 'https://github.com/AngelsTech/aws-lambda-demo.git'
-            }
+                checkout([$class: 'GitSCM',
+                   branches: [[name: '*/main']],
+                   userRemoteConfigs: [[
+                     url: 'https://github.com/AngelsTech/aws-lambda-demo.git'
+                     credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0',
+                  ]]
+              ])
+           }
         }
-
         stage('Prepare') {
             steps {
                 sh 'zip -r $ZIP_FILE lambda_function.py'
             }
         }
-
         stage('Deploy Lambda') {
             steps {
                 withCredentials([[
