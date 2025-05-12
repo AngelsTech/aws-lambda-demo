@@ -14,7 +14,7 @@ pipeline {
         stage('Clone Repository') {
             steps {
                 checkout([$class: 'GitSCM',
-                   branches: [[name: '*/main']],
+                   branches: [[name: '*/lambda']],
                    userRemoteConfigs: [[
                      url: 'https://github.com/AngelsTech/aws-lambda-demo.git',
                      credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0'
