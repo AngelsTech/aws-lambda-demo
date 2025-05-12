@@ -7,7 +7,9 @@ pipeline {
         ZIP_FILE = 'lambda.zip'
         ARN_FILE = 'lambda_arn.txt'
     }
-
+    parameters {
+    string defaultValue: 'main', description: 'Enter git branch', name: 'GIT_BRANCH', trim: true
+  }
     stages {
         stage('Clone Repository') {
             steps {
