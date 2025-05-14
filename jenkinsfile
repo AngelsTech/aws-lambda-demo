@@ -4,24 +4,32 @@
 
 pipeline {
     agent any
+
     parameters {
         string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Enter the Git branch to build')
     }
 
     environment {
         LAMBDA_REPO_URL = 'https://github.com/your-org/your-lambda-repo.git'
-    }
-    environment {
         FUNCTION_NAME = 'hey-world-first_lambdatest'
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
         ARN_FILE = 'lambda_arn.txt'
-    } 
+    }
+
     stages {
+
+        stage('Debug Selected Branch') {
+            steps {
+                echo "Branch selected by user: ${params.GIT_BRANCH}"
+            }
+        }
+
         stage('Checkout Code') {
             steps {
-                git branch: "${params.GIT_BRANCH}", url: "${env.LAMBDA_REPO_URL}",
-                     credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0'
+                git branch: "${params.GIT_BRANCH}",
+                    url: "${env.LAMBDA_REPO_URL}",
+                    credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0'
                   }
               }
            }
