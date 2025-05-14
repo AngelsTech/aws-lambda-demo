@@ -1,12 +1,12 @@
-# def  GIT_REPO_BRANCH
- #  GIT_REPO_BRANCH = env.GIT_BRANCH ? : 'develop'
-#  def GIT_REPO_URL = "https://github.com/AngelsTech/aws-lambda-demo"
+// def  GIT_REPO_BRANCH
+// GIT_REPO_BRANCH = env.GIT_BRANCH ? : 'develop'
+// def GIT_REPO_URL = "https://github.com/AngelsTech/aws-lambda-demo"
 
 pipeline {
     agent any
 
     parameters {
-        string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Enter the Git branch to build')
+        string(name: 'GIT_BRANCH', defaultValue: 'lambda', description: 'Enter the Git branch to build')
     }
 
     environment {
