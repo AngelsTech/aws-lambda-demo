@@ -19,7 +19,7 @@ pipeline {
         ZIP_FILE = 'lambda.zip'
         ARN_FILE = 'lambda_arn.txt'
         SCHEDULE_RULE_NAME = 'lambda-schedule-rule'
-        LAMBDA_ROLE_ARN = 'arn:aws:iam::123456789012:role/my-lambda-execution-role' // Replace with your real ARN
+        LAMBDA_ROLE_ARN = 'arn:aws:iam::529088259986:role/service-role/s3_execRole' // Replace with your real ARN
     }
 
     stages {
