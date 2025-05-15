@@ -6,8 +6,6 @@ pipeline {
         REGION = 'us-east-1'
         ZIP_FILE = 'lambda.zip'
         ARN_FILE = 'lambda_arn.txt'
-        ACCOUNT_ID = 'aaaaaaaaaaaaaa'
-        ROLE_NAME = 'service-role/s3_execRole'
     }
     parameters {
     string defaultValue: 'main', description: 'Enter git branch', name: 'GIT_BRANCH', trim: true
