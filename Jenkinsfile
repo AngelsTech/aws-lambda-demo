@@ -26,11 +26,11 @@ pipeline {
 
         stage('Show Selected Params') {
             steps {
-                echo "Branch: ${params.GIT_BRANCH}"
-                echo "Function: ${params.FUNCTION_NAME}"
-                echo "Handler: ${params.HANDLER_NAME}"
-                echo "IAM Role ARN: ${params.ROLE_ARN}"
-                echo "Schedule Expression: ${params.SCHEDULE_EXPRESSION}"
+                echo "🔧 Branch: ${params.GIT_BRANCH}"
+                echo "🔧 Function: ${params.FUNCTION_NAME}"
+                echo "🔧 Handler: ${params.HANDLER_NAME}"
+                echo "🔧 IAM Role ARN: ${params.ROLE_ARN}"
+                echo "🔧 Schedule Expression: ${params.SCHEDULE_EXPRESSION}"
             }
         }
 
@@ -44,7 +44,11 @@ pipeline {
 
         stage('Package Lambda Code') {
             steps {
-                sh "zip -r ${env.ZIP_FILE} lambda_function.py"
+                sh """
+                    set -e
+                    echo "📦 Zipping lambda_function.py..."
+                    zip -r ${env.ZIP_FILE} lambda_function.py
+                """
             }
         }
 
@@ -57,34 +61,31 @@ pipeline {
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                 ]]) {
                     sh """
-                        echo "Creating or updating Lambda function..."
+                        set -e
+                        echo "🚀 Checking if Lambda function exists..."
 
-                        aws lambda get-function \
-                          --function-name ${params.FUNCTION_NAME} \
-                          --region ${env.REGION} && EXISTS=true || EXISTS=false
-
-                        if [ "\$EXISTS" = "false" ]; then
-                            echo "Function doesn't exist. Creating..."
-                            aws lambda create-function \
-                              --function-name ${params.FUNCTION_NAME} \
-                              --runtime ${env.RUNTIME} \
-                              --role ${params.ROLE_ARN} \
-                              --handler ${params.HANDLER_NAME} \
-                              --zip-file fileb://${env.ZIP_FILE} \
-                              --region ${env.REGION}
+                        if aws lambda get-function --function-name ${params.FUNCTION_NAME} --region ${env.REGION}; then
+                            echo "🔄 Function exists. Updating code..."
+                            aws lambda update-function-code \\
+                                --function-name ${params.FUNCTION_NAME} \\
+                                --zip-file fileb://${env.ZIP_FILE} \\
+                                --region ${env.REGION}
                         else
-                            echo "Function exists. Updating code..."
-                            aws lambda update-function-code \
-                              --function-name ${params.FUNCTION_NAME} \
-                              --zip-file fileb://${env.ZIP_FILE} \
-                              --region ${env.REGION}
+                            echo "🆕 Function doesn't exist. Creating..."
+                            aws lambda create-function \\
+                                --function-name ${params.FUNCTION_NAME} \\
+                                --runtime ${env.RUNTIME} \\
+                                --role ${params.ROLE_ARN} \\
+                                --handler ${params.HANDLER_NAME} \\
+                                --zip-file fileb://${env.ZIP_FILE} \\
+                                --region ${env.REGION}
                         fi
 
-                        echo "Getting Function ARN..."
-                        aws lambda get-function \
-                            --function-name ${params.FUNCTION_NAME} \
-                            --region ${env.REGION} \
-                            --query 'Configuration.FunctionArn' \
+                        echo "📥 Fetching Function ARN..."
+                        aws lambda get-function \\
+                            --function-name ${params.FUNCTION_NAME} \\
+                            --region ${env.REGION} \\
+                            --query 'Configuration.FunctionArn' \\
                             --output text > ${env.ARN_FILE}
                     """
                 }
@@ -100,27 +101,29 @@ pipeline {
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                 ]]) {
                     sh """
+                        set -e
                         LAMBDA_ARN=\$(cat ${env.ARN_FILE})
+                        ACCOUNT_ID=\$(aws sts get-caller-identity --query Account --output text)
 
-                        echo "Creating/Updating CloudWatch rule..."
-                        aws events put-rule \
-                            --schedule-expression "${params.SCHEDULE_EXPRESSION}" \
-                            --name ${env.SCHEDULE_RULE_NAME} \
+                        echo "⏰ Creating or updating CloudWatch rule..."
+                        aws events put-rule \\
+                            --schedule-expression "${params.SCHEDULE_EXPRESSION}" \\
+                            --name ${env.SCHEDULE_RULE_NAME} \\
                             --region ${env.REGION}
 
-                        echo "Allowing CloudWatch to trigger Lambda..."
-                        aws lambda add-permission \
-                            --function-name ${params.FUNCTION_NAME} \
-                            --statement-id schedule-invoke \
-                            --action lambda:InvokeFunction \
-                            --principal events.amazonaws.com \
-                            --source-arn arn:aws:events:${env.REGION}:$(aws sts get-caller-identity --query Account --output text):rule/${env.SCHEDULE_RULE_NAME} \
+                        echo "🔐 Adding permission to Lambda..."
+                        aws lambda add-permission \\
+                            --function-name ${params.FUNCTION_NAME} \\
+                            --statement-id schedule-invoke \\
+                            --action lambda:InvokeFunction \\
+                            --principal events.amazonaws.com \\
+                            --source-arn arn:aws:events:${env.REGION}:\${ACCOUNT_ID}:rule/${env.SCHEDULE_RULE_NAME} \\
                             --region ${env.REGION} || true
 
-                        echo "Attaching rule to Lambda..."
-                        aws events put-targets \
-                            --rule ${env.SCHEDULE_RULE_NAME} \
-                            --targets "Id"="1","Arn"="\${LAMBDA_ARN}" \
+                        echo "🔗 Linking rule to Lambda target..."
+                        aws events put-targets \\
+                            --rule ${env.SCHEDULE_RULE_NAME} \\
+                            --targets '[{"Id":"1","Arn":"'\${LAMBDA_ARN}'"}]' \\
                             --region ${env.REGION}
                     """
                 }
