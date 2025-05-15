@@ -6,10 +6,9 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Git branch to build from')
+        string(name: 'GIT_BRANCH', defaultValue: 'develop', description: 'Git branch to build from')
         string(name: 'FUNCTION_NAME', defaultValue: 'my-lambda-function', description: 'Lambda Function Name')
         string(name: 'HANDLER_NAME', defaultValue: 'lambda_function.lambda_handler', description: 'Lambda Handler')
-        string(name: 'ROLE_ARN', defaultValue: 'arn:aws:iam::<ACCOUNT_ID>:role/<ROLE_NAME>', description: 'Lambda IAM Role ARN')
         string(name: 'SCHEDULE_EXPRESSION', defaultValue: 'rate(15 minutes)', description: 'CloudWatch Schedule Expression')
     }
 
@@ -20,6 +19,7 @@ pipeline {
         ZIP_FILE = 'lambda.zip'
         ARN_FILE = 'lambda_arn.txt'
         SCHEDULE_RULE_NAME = 'lambda-schedule-rule'
+        LAMBDA_ROLE_ARN = 'arn:aws:iam::123456789012:role/my-lambda-execution-role' // Replace with your real ARN
     }
 
     stages {
@@ -29,8 +29,8 @@ pipeline {
                 echo "🔧 Branch: ${params.GIT_BRANCH}"
                 echo "🔧 Function: ${params.FUNCTION_NAME}"
                 echo "🔧 Handler: ${params.HANDLER_NAME}"
-                echo "🔧 IAM Role ARN: ${params.ROLE_ARN}"
                 echo "🔧 Schedule Expression: ${params.SCHEDULE_EXPRESSION}"
+                echo "🔧 Lambda Role ARN: ${env.LAMBDA_ROLE_ARN}"
             }
         }
 
@@ -75,7 +75,7 @@ pipeline {
                             aws lambda create-function \\
                                 --function-name ${params.FUNCTION_NAME} \\
                                 --runtime ${env.RUNTIME} \\
-                                --role ${params.ROLE_ARN} \\
+                                --role ${env.LAMBDA_ROLE_ARN} \\
                                 --handler ${params.HANDLER_NAME} \\
                                 --zip-file fileb://${env.ZIP_FILE} \\
                                 --region ${env.REGION}
