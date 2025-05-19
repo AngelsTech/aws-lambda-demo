@@ -7,7 +7,7 @@ pipeline {
 
     parameters {
         string(name: 'GIT_BRANCH', defaultValue: 'develop', description: 'Git branch to build from')
-        string(name: 'FUNCTION_NAME', defaultValue: 'lambda-function-test', description: 'Lambda Function Name')
+        string(name: 'FUNCTION_NAME', defaultValue: 'lambda-function-testdemo', description: 'Lambda Function Name')
         string(name: 'HANDLER_NAME', defaultValue: 'lambda_function.lambda_handler', description: 'Lambda Handler')
         string(name: 'SCHEDULE_EXPRESSION', defaultValue: 'rate(15 minutes)', description: 'CloudWatch Schedule Expression')
     }
