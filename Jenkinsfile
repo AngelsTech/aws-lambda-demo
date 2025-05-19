@@ -7,24 +7,30 @@ pipeline {
         ZIP_FILE = 'lambda.zip'
         ARN_FILE = 'lambda_arn.txt'
     }
+
     parameters {
-    string defaultValue: 'main', description: 'Enter git branch', name: 'GIT_BRANCH', trim: true
-  }
+        string defaultValue: 'main', description: 'Enter git branch', name: 'GIT_BRANCH', trim: true
+    }
+
     stages {
         stage('Clone Repository') {
             steps {
                 checkout([$class: 'GitSCM',
-                   branches: [[name: '*/main']],
-                   userRemoteConfigs: [[
-                     url: 'https://github.com/AngelsTech/aws-lambda-demo.git',
-                     credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0'
-                  ]]
-              ])
-           }
+                    branches: [[name: "*/${params.GIT_BRANCH}"]],
+                    userRemoteConfigs: [[
+                        url: 'https://github.com/AngelsTech/aws-lambda-demo.git',
+                        credentialsId: '66142c87-d271-41f4-82d1-cbbee8e844d0'
+                    ]]
+                ])
+            }
         }
+
         stage('Prepare') {
             steps {
-                sh 'zip -r $ZIP_FILE lambda_function.py'
+                sh '''
+                    echo "Zipping entire repository contents excluding .git folder..."
+                    zip -r $ZIP_FILE . -x ".git/*"
+                '''
             }
         }
         stage('Deploy Lambda') {
