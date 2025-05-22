@@ -6,10 +6,11 @@ pipeline {
         REGION = 'us-east-1'
         ZIP_FILE = "lambda_package.zip"
         ARN_FILE = 'lambda_arn.txt'
+        ROLE_ARN = 'arn:aws:iam::529088259986:role/service-role/s3_execRole'  // added here for clarity
     }
 
     parameters {
-        string defaultValue: 'main', description: 'Enter git branch', name: 'GIT_BRANCH', trim: true
+        string(name: 'GIT_BRANCH', defaultValue: 'main', description: 'Enter git branch', trim: true)
     }
 
     stages {
@@ -29,15 +30,12 @@ pipeline {
             steps {
                 sh '''
                     echo "Zipping all required files for Lambda deployment..."
-                    zip -r $ZIP_FILE . \
-                        -x ".git/*" \
-                        -x "README.md" \
-                        -x "Jenkinsfile"
+                    # Zip everything at root except .git, README.md, Jenkinsfile
+                    zip -r $ZIP_FILE . -x ".git/*" -x "README.md" -x "Jenkinsfile"
                 '''
-              }
-           }
-         }
-      }
+            }
+        }
+
         stage('Deploy Lambda') {
             steps {
                 withCredentials([[
@@ -47,11 +45,12 @@ pipeline {
                     secretKeyVariable: 'AWS_SECRET_ACCESS_KEY'
                 ]]) {
                     sh '''
-                        echo "Creating Lambda function..."
+                        echo "Creating Lambda function if it does not exist..."
                         aws lambda create-function \
                           --function-name $FUNCTION_NAME \
                           --runtime python3.13 \
-                          --role arn:aws:iam::529088259986:role/service-role/s3_execRole \
+                          --role $ROLE_ARN \
+
                           --handler lambda_function.lambda_handler \
                           --zip-file fileb://$ZIP_FILE \
                           --region $REGION || true
@@ -114,9 +113,13 @@ pipeline {
                         echo "Creating target for CloudWatch Events..."
                         aws events put-targets \
                             --rule hello-first-schedule \
+
+
                             --targets "Id"="1","Arn"="$LAMBDA_ARN" \
                             --region $REGION
                     '''
                 }
             }
         }
+    }
+}
