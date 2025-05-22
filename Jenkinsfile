@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        FUNCTION_NAME = 'hey-world-first_lambdatest'
+        FUNCTION_NAME = 'hey-world-first_lambdatest2'
         REGION = 'us-east-1'
         ZIP_FILE = "lambda_package.zip"
         ARN_FILE = 'lambda_arn.txt'
@@ -100,20 +100,20 @@ pipeline {
                         echo "Creating CloudWatch Events rule..."
                         aws events put-rule \
                             --schedule-expression "rate(15 minutes)" \
-                            --name hello-schedule \
+                            --name hello-first-schedule \
                             --region $REGION
 
                         echo "Adding permission for CloudWatch to invoke Lambda..."
                         aws lambda add-permission \
                             --function-name $FUNCTION_NAME \
-                            --statement-id hello-event \
+                            --statement-id hello-first-event \
                             --action lambda:InvokeFunction \
                             --principal events.amazonaws.com \
                             --region $REGION || true
 
                         echo "Creating target for CloudWatch Events..."
                         aws events put-targets \
-                            --rule hello-schedule \
+                            --rule hello-first-schedule \
                             --targets "Id"="1","Arn"="$LAMBDA_ARN" \
                             --region $REGION
                     '''
