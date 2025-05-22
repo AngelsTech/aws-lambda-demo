@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        FUNCTION_NAME = 'hey-world-first_lambdatest2'
+        FUNCTION_NAME = 'hey-world-first_lambdatest3
         REGION = 'us-east-1'
         ZIP_FILE = "lambda_package.zip"
         ARN_FILE = 'lambda_arn.txt'
@@ -51,7 +51,7 @@ pipeline {
                             --function-name $FUNCTION_NAME \
                             --runtime python3.13 \
                             --role arn:aws:iam::529088259986:role/service-role/s3_execRole \
-                            --handler lambda_function.lambda_handler \
+                            --handler test.devtest.lambda_function.lambda_handler \
                             --zip-file fileb://$ZIP_FILE \
                             --region $REGION || true
 
@@ -99,20 +99,20 @@ pipeline {
                         echo "Creating CloudWatch Events rule..."
                         aws events put-rule \
                             --schedule-expression "rate(15 minutes)" \
-                            --name hello-first-schedule \
+                            --name hello-first3-schedule \
                             --region $REGION
 
                         echo "Adding permission for CloudWatch to invoke Lambda..."
                         aws lambda add-permission \
                             --function-name $FUNCTION_NAME \
-                            --statement-id hello-first-event \
+                            --statement-id hello-first3-event \
                             --action lambda:InvokeFunction \
                             --principal events.amazonaws.com \
                             --region $REGION || true
 
                         echo "Creating target for CloudWatch Events..."
                         aws events put-targets \
-                            --rule hello-first-schedule \
+                            --rule hello-first3-schedule \
                             --targets "Id"="1","Arn"="$LAMBDA_ARN" \
                             --region $REGION
                     '''
