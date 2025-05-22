@@ -4,7 +4,7 @@ pipeline {
     environment {
         FUNCTION_NAME = 'hey-world-first_lambdatest'
         REGION = 'us-east-1'
-        ZIP_FILE = 'lambda.zip'
+        ZIP_FILE = "lambda_package.zip"
         ARN_FILE = 'lambda_arn.txt'
     }
 
@@ -28,11 +28,16 @@ pipeline {
         stage('Prepare') {
             steps {
                 sh '''
-                    echo "Zipping entire repository contents excluding .git folder..."
-                    zip -r $ZIP_FILE . -x ".git/*"
+                    echo "Zipping all required files for Lambda deployment..."
+                    zip -r $ZIP_FILE . \
+                        -x ".git/*" \
+                        -x "README.md" \
+                        -x "Jenkinsfile"
                 '''
-            }
-        }
+              }
+           }
+         }
+      }
         stage('Deploy Lambda') {
             steps {
                 withCredentials([[
