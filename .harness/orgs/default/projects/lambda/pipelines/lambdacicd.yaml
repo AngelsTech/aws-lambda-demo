@@ -218,24 +218,10 @@ pipeline:
           deploymentType: Kubernetes
           service:
             serviceRef: <+input>
-            serviceInputs:
-              serviceDefinition:
-                type: Kubernetes
-                spec:
-                  manifests:
-                    - manifest:
-                        identifier: lambda-deployment
-                        type: K8sManifest
-                        spec:
-                          store:
-                            type: Github
-                            spec:
-                              connectorRef: <+input>
-                              branch: harness
-                              paths:
-                                - manifests/lambda.yaml
+            serviceInputs: <+input>
           environment:
             environmentRef: <+input>
+            environmentInputs: <+input>
           execution:
             steps:
               - step:
