@@ -3,6 +3,7 @@ pipeline:
   identifier: lambdacicd
   projectIdentifier: lambda
   orgIdentifier: default
+  pipeline: null
   tags: {}
   properties:
     ci:
@@ -60,6 +61,11 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
+                      # Install required packages
+                      echo "Installing system dependencies..."
+                      apt-get update && apt-get install -y zip unzip
+
+                      # Package Lambda function
                       echo "Zipping Lambda function code..."
                       cd test
                       zip -r ../lambda_package.zip devtest \
@@ -69,6 +75,7 @@ pipeline:
                         -x "**/__pycache__/*" \
                         -x "**/*.pyc"
                       cd ..
+
                       echo "Lambda package contents:"
                       unzip -l lambda_package.zip
                       echo "Package size:"
