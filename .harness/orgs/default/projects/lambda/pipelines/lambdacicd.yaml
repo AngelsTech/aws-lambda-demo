@@ -149,7 +149,7 @@ pipeline:
                   identifier: Publish_Lambda_Layer
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |
