@@ -78,9 +78,10 @@ pipeline:
                   type: Run
                   spec:
                     connectorRef: awsconnector
-                    image: public.ecr.aws/aws-cli/aws-cli:2.15.0
+                    image: python:3.13-alpine
                     shell: Sh
                     command: |
+                      apk add --no-cache curl jq bash
                       LAYER_NAME="hey-world-deps-<+env.name>"
                       echo "Publishing Lambda Layer: $LAYER_NAME"
 
@@ -103,9 +104,10 @@ pipeline:
                   type: Run
                   spec:
                     connectorRef: awsconnector
-                    image: public.ecr.aws/aws-cli/aws-cli:2.15.0
+                    image: python:3.13-alpine
                     shell: Sh
                     command: |
+                      apk add --no-cache curl jq bash
                       FUNCTION_NAME="hey-world-demo-<+env.name>"
                       ZIP_FILE="<+pipeline.stages.Build_and_Package.spec.execution.steps.Package_Lambda.output.outputVariables.LAMBDA_PACKAGE>"
                       LAYER_VERSION="<+pipeline.stages.Build_and_Package.spec.execution.steps.Publish_Lambda_Layer.output.outputVariables.LAYER_VERSION>"
@@ -139,9 +141,10 @@ pipeline:
                   type: Run
                   spec:
                     connectorRef: awsconnector
-                    image: public.ecr.aws/aws-cli/aws-cli:2.15.0
+                    image: python:3.13-alpine
                     shell: Sh
                     command: |
+                      apk add --no-cache curl jq bash
                       FUNCTION_NAME="hey-world-demo-<+env.name>"
                       RULE_NAME="hello-world-schedule-<+env.name>"
                       SCHEDULE="rate(5 minutes)"
@@ -181,9 +184,10 @@ pipeline:
                   type: Run
                   spec:
                     connectorRef: awsconnector
-                    image: public.ecr.aws/aws-cli/aws-cli:2.15.0
+                    image: python:3.13-alpine
                     shell: Sh
                     command: |
+                      apk add --no-cache curl jq bash
                       FUNCTION_NAME="hey-world-demo-<+env.name>"
 
                       RESPONSE=$(aws lambda invoke \
@@ -214,10 +218,24 @@ pipeline:
           deploymentType: Kubernetes
           service:
             serviceRef: <+input>
-            serviceInputs: <+input>
+            serviceInputs:
+              serviceDefinition:
+                type: Kubernetes
+                spec:
+                  manifests:
+                    - manifest:
+                        identifier: lambda-deployment
+                        type: K8sManifest
+                        spec:
+                          store:
+                            type: Github
+                            spec:
+                              connectorRef: <+input>
+                              branch: harness
+                              paths:
+                                - manifests/lambda.yaml
           environment:
             environmentRef: <+input>
-            environmentInputs: <+input>
           execution:
             steps:
               - step:
@@ -227,6 +245,6 @@ pipeline:
                   spec:
                     shell: Sh
                     connectorRef: eksconnector
-                    image: alpine:latest
+                    image: python:3.13-alpine
                     command: |
                       echo "No steps to execute in Deployment stage"
