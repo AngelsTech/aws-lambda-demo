@@ -103,7 +103,7 @@ pipeline:
         identifier: Deploy_Lambda
         type: CI
         spec:
-          cloneCodebase: false
+          cloneCodebase: true
           infrastructure:
             type: KubernetesDirect
             spec:
@@ -113,13 +113,37 @@ pipeline:
               nodeSelector: {}
               os: Linux
           caching:
-            enabled: true
-            key: lambda-build-<+pipeline.executionId>
-            paths:
-              - layer_package.zip
-              - lambda_package.zip
+            enabled: false
           execution:
             steps:
+              - step:
+                  name: Rebuild_Packages
+                  identifier: Rebuild_Packages
+                  type: Run
+                  spec:
+                    connectorRef: eksconnector
+                    image: python:3.13
+                    shell: Sh
+                    command: |
+                      echo "Installing system dependencies..."
+                      apt-get update -qq && apt-get install -y -qq zip unzip > /dev/null 2>&1
+
+                      echo "Installing Python dependencies..."
+                      mkdir -p python
+                      pip install -q -r test/devtest/requirements.txt -t python
+                      zip -q -r layer_package.zip python
+                      echo "✓ Layer package created: $(ls -lh layer_package.zip | awk '{print $5}')"
+
+                      echo "Packaging Lambda function..."
+                      cd test
+                      zip -q -r ../lambda_package.zip devtest \
+                        -x "**/.git/*" \
+                        -x "**/README.md" \
+                        -x "**/Jenkinsfile" \
+                        -x "**/__pycache__/*" \
+                        -x "**/*.pyc"
+                      cd ..
+                      echo "✓ Lambda package created: $(ls -lh lambda_package.zip | awk '{print $5}')"
               - step:
                   name: Publish_Lambda_Layer
                   identifier: Publish_Lambda_Layer
