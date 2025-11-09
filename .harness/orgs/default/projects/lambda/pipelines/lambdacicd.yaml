@@ -87,9 +87,6 @@ pipeline:
                       - name: BUILD_ID
                         type: String
                         value: BUILD_ID
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
     - stage:
         name: Deploy_Lambda
         identifier: Deploy_Lambda
@@ -135,9 +132,6 @@ pipeline:
 
                       echo "Artifacts downloaded successfully"
                       ls -lh *.zip
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
               - step:
                   name: Publish_Lambda_Layer
                   identifier: Publish_Lambda_Layer
@@ -160,9 +154,6 @@ pipeline:
 
                       echo "Layer version published: $LAYER_VERSION"
                       echo "LAYER_VERSION=$LAYER_VERSION" >> layer.env
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
                     outputVariables:
                       - name: LAYER_VERSION
                         type: String
@@ -240,9 +231,6 @@ pipeline:
                         --output text)
 
                       echo "Lambda function deployed: $FUNCTION_ARN"
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
               - step:
                   name: Setup_CloudWatch_Schedule
                   identifier: Setup_CloudWatch_Schedule
@@ -297,9 +285,6 @@ pipeline:
                       fi
 
                       echo "CloudWatch schedule setup complete"
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
               - step:
                   name: Test_Lambda_Function
                   identifier: Test_Lambda_Function
@@ -332,7 +317,4 @@ pipeline:
                         echo "Lambda test failed!"
                         exit 1
                       fi
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
             rollbackSteps: []
