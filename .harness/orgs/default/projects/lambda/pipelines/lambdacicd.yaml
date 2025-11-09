@@ -26,7 +26,11 @@ pipeline:
               nodeSelector: {}
               os: Linux
           caching:
-            enabled: false
+            enabled: true
+            key: lambda-build-<+pipeline.executionId>
+            paths:
+              - layer_package.zip
+              - lambda_package.zip
           execution:
             steps:
               - step:
@@ -99,7 +103,7 @@ pipeline:
         identifier: Deploy_Lambda
         type: CI
         spec:
-          cloneCodebase: true
+          cloneCodebase: false
           infrastructure:
             type: KubernetesDirect
             spec:
@@ -109,52 +113,13 @@ pipeline:
               nodeSelector: {}
               os: Linux
           caching:
-            enabled: false
+            enabled: true
+            key: lambda-build-<+pipeline.executionId>
+            paths:
+              - layer_package.zip
+              - lambda_package.zip
           execution:
             steps:
-              - step:
-                  name: Install_Dependencies
-                  identifier: Install_Dependencies_Deploy
-                  type: Run
-                  spec:
-                    connectorRef: eksconnector
-                    image: python:3.13
-                    shell: Sh
-                    command: |
-                      echo "Installing system dependencies..."
-                      apt-get update && apt-get install -y zip
-
-                      echo "Installing Python dependencies..."
-                      mkdir -p python
-                      pip install -r test/devtest/requirements.txt -t python
-                      zip -r layer_package.zip python
-                      echo "Layer package created successfully"
-                      ls -lh layer_package.zip
-              - step:
-                  name: Package_Lambda
-                  identifier: Package_Lambda_Deploy
-                  type: Run
-                  spec:
-                    connectorRef: eksconnector
-                    image: python:3.13
-                    shell: Sh
-                    command: |
-                      echo "Installing zip utility..."
-                      apt-get update && apt-get install -y zip
-
-                      echo "Zipping Lambda function code..."
-                      cd test
-                      zip -r ../lambda_package.zip devtest \
-                        -x "**/.git/*" \
-                        -x "**/README.md" \
-                        -x "**/Jenkinsfile" \
-                        -x "**/__pycache__/*" \
-                        -x "**/*.pyc"
-                      cd ..
-                      echo "Lambda package contents:"
-                      unzip -l lambda_package.zip
-                      echo "Package size:"
-                      ls -lh lambda_package.zip
               - step:
                   name: Publish_Lambda_Layer
                   identifier: Publish_Lambda_Layer
@@ -165,10 +130,16 @@ pipeline:
                     shell: Sh
                     command: |
                       export AWS_DEFAULT_REGION=us-east-1
-                      ENV_NAME="<+pipeline.stages.Deploy_Lambda.spec.execution.steps.Select_Environment.output.outputVariables.ENV_NAME>"
+
+                      # Get environment from pipeline variable or default to dev
+                      ENV_NAME="<+pipeline.variables.environment>"
+                      if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
+                        ENV_NAME="dev"
+                      fi
+
                       LAYER_NAME="hey-world-deps-$ENV_NAME"
 
-                      echo "Publishing Lambda Layer: $LAYER_NAME"
+                      echo "Publishing Lambda Layer: $LAYER_NAME for environment: $ENV_NAME"
                       LAYER_VERSION=$(aws lambda publish-layer-version \
                         --layer-name $LAYER_NAME \
                         --zip-file fileb://layer_package.zip \
@@ -192,10 +163,18 @@ pipeline:
                     shell: Sh
                     command: |
                       export AWS_DEFAULT_REGION=us-east-1
-                      ENV_NAME="<+pipeline.stages.Deploy_Lambda.spec.execution.steps.Select_Environment.output.outputVariables.ENV_NAME>"
+
+                      # Get environment from pipeline variable or default to dev
+                      ENV_NAME="<+pipeline.variables.environment>"
+                      if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
+                        ENV_NAME="dev"
+                      fi
+
                       FUNCTION_NAME="hey-world-demo-$ENV_NAME"
                       ZIP_FILE="lambda_package.zip"
                       LAYER_VERSION="<+pipeline.stages.Deploy_Lambda.spec.execution.steps.Publish_Lambda_Layer.output.outputVariables.LAYER_VERSION>"
+
+                      echo "Deploying to environment: $ENV_NAME"
 
                       # Determine IAM role based on environment
                       ROLE_ARN=""
@@ -266,7 +245,13 @@ pipeline:
                     shell: Sh
                     command: |
                       export AWS_DEFAULT_REGION=us-east-1
-                      ENV_NAME="<+pipeline.stages.Deploy_Lambda.spec.execution.steps.Select_Environment.output.outputVariables.ENV_NAME>"
+
+                      # Get environment from pipeline variable or default to dev
+                      ENV_NAME="<+pipeline.variables.environment>"
+                      if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
+                        ENV_NAME="dev"
+                      fi
+
                       FUNCTION_NAME="hey-world-demo-$ENV_NAME"
                       RULE_NAME="hello-world-schedule-$ENV_NAME"
                       SCHEDULE="rate(5 minutes)"
@@ -321,7 +306,13 @@ pipeline:
                     shell: Sh
                     command: |
                       export AWS_DEFAULT_REGION=us-east-1
-                      ENV_NAME="<+pipeline.stages.Deploy_Lambda.spec.execution.steps.Select_Environment.output.outputVariables.ENV_NAME>"
+
+                      # Get environment from pipeline variable or default to dev
+                      ENV_NAME="<+pipeline.variables.environment>"
+                      if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
+                        ENV_NAME="dev"
+                      fi
+
                       FUNCTION_NAME="hey-world-demo-$ENV_NAME"
 
                       echo "Testing Lambda function: $FUNCTION_NAME"
