@@ -3,7 +3,6 @@ pipeline:
   identifier: lambdacicd
   projectIdentifier: lambda
   orgIdentifier: default
-  pipeline: null
   tags: {}
   properties:
     ci:
