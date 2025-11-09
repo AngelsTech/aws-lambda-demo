@@ -56,7 +56,7 @@ pipeline:
                   identifier: Install_Dependencies
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: python:3.13
                     shell: Sh
                     command: |
