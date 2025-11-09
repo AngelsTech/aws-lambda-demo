@@ -8,5 +8,5 @@ infrastructureDefinition:
   type: AwsLambda
   spec:
     connectorRef: awsconnector
-    region: us-east-2
+    region: us-east-1
   allowSimultaneousDeployments: true
