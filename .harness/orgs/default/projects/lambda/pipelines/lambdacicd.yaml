@@ -83,7 +83,7 @@ pipeline:
               action:
                 type: StageRollback
         spec:
-          deploymentType: ServerlessAwsLambda
+          deploymentType: AwsLambda
           service:
             serviceRef: <+input>
             serviceInputs: <+input>
