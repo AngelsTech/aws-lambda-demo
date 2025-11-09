@@ -3,7 +3,6 @@ pipeline:
   identifier: lambdacicd
   projectIdentifier: lambda
   orgIdentifier: default
-  tags: {}
   properties:
     ci:
       codebase:
@@ -23,10 +22,7 @@ pipeline:
               connectorRef: eksconnector
               namespace: harness-delegate-ng
               automountServiceAccountToken: true
-              nodeSelector: {}
               os: Linux
-          caching:
-            enabled: false
           execution:
             steps:
               - step:
@@ -43,7 +39,6 @@ pipeline:
                       echo "2) stage"
                       echo "3) prod"
 
-                      # Default to dev if not specified
                       ENV_NAME="<+input>.default(dev)"
                       echo "Deploying to environment: $ENV_NAME"
                       echo "ENV_NAME=$ENV_NAME" >> env.properties
@@ -60,14 +55,11 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
-                      echo "Installing system dependencies..."
+                      echo "Installing dependencies..."
                       apt-get update && apt-get install -y zip
-
-                      echo "Installing Python dependencies..."
                       mkdir -p python
                       pip install -r test/devtest/requirements.txt -t python
                       zip -r layer_package.zip python
-                      echo "Layer package created successfully"
                       ls -lh layer_package.zip
               - step:
                   name: Package_Lambda
@@ -78,10 +70,8 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
-                      echo "Installing zip utility..."
+                      echo "Packaging Lambda function..."
                       apt-get update && apt-get install -y zip
-
-                      echo "Zipping Lambda function code..."
                       cd test
                       zip -r ../lambda_package.zip devtest \
                         -x "**/.git/*" \
@@ -90,9 +80,7 @@ pipeline:
                         -x "**/__pycache__/*" \
                         -x "**/*.pyc"
                       cd ..
-                      echo "Lambda package contents:"
                       unzip -l lambda_package.zip
-                      echo "Package size:"
                       ls -lh lambda_package.zip
     - stage:
         name: Deploy_Lambda
@@ -106,10 +94,7 @@ pipeline:
               connectorRef: eksconnector
               namespace: harness-delegate-ng
               automountServiceAccountToken: true
-              nodeSelector: {}
               os: Linux
-          caching:
-            enabled: false
           execution:
             steps:
               - step:
@@ -121,16 +106,11 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
-                      echo "Installing system dependencies..."
                       apt-get update -qq && apt-get install -y -qq zip unzip > /dev/null 2>&1
-
-                      echo "Installing Python dependencies..."
                       mkdir -p python
                       pip install -q -r test/devtest/requirements.txt -t python
                       zip -q -r layer_package.zip python
-                      echo "✓ Layer package created: $(ls -lh layer_package.zip | awk '{print $5}')"
-
-                      echo "Packaging Lambda function..."
+                      echo "Layer package created"
                       cd test
                       zip -q -r ../lambda_package.zip devtest \
                         -x "**/.git/*" \
@@ -139,21 +119,17 @@ pipeline:
                         -x "**/__pycache__/*" \
                         -x "**/*.pyc"
                       cd ..
-                      echo "✓ Lambda package created: $(ls -lh lambda_package.zip | awk '{print $5}')"
+                      echo "Lambda package rebuilt"
               - step:
                   name: Publish_Lambda_Layer
                   identifier: Publish_Lambda_Layer
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
-                      AWS_DEFAULT_REGION: us-east-1
                     command: |
-                      # Get environment from pipeline variable or default to dev
+                      export AWS_DEFAULT_REGION=us-east-1
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
                         ENV_NAME="dev"
@@ -161,7 +137,7 @@ pipeline:
 
                       LAYER_NAME="hey-world-deps-$ENV_NAME"
 
-                      echo "Publishing Lambda Layer: $LAYER_NAME for environment: $ENV_NAME"
+                      echo "Publishing Lambda Layer: $LAYER_NAME"
                       LAYER_VERSION=$(aws lambda publish-layer-version \
                         --layer-name $LAYER_NAME \
                         --zip-file fileb://layer_package.zip \
@@ -169,7 +145,6 @@ pipeline:
                         --description "Dependencies for hey-world Lambda - $ENV_NAME environment" \
                         --query Version --output text)
 
-                      echo "Layer version published: $LAYER_VERSION"
                       echo "LAYER_VERSION=$LAYER_VERSION" >> layer.env
                     outputVariables:
                       - name: LAYER_VERSION
@@ -180,13 +155,11 @@ pipeline:
                   identifier: Deploy_Lambda_Function
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |
                       export AWS_DEFAULT_REGION=us-east-1
-
-                      # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
                         ENV_NAME="dev"
@@ -196,9 +169,6 @@ pipeline:
                       ZIP_FILE="lambda_package.zip"
                       LAYER_VERSION="<+pipeline.stages.Deploy_Lambda.spec.execution.steps.Publish_Lambda_Layer.output.outputVariables.LAYER_VERSION>"
 
-                      echo "Deploying to environment: $ENV_NAME"
-
-                      # Determine IAM role based on environment
                       ROLE_ARN=""
                       if [ "$ENV_NAME" = "dev" ]; then
                         ROLE_ARN="arn:aws:iam::529088259986:role/lambda_exec_role_dev"
@@ -213,7 +183,6 @@ pipeline:
 
                       echo "Deploying Lambda function: $FUNCTION_NAME"
 
-                      # Check if function exists
                       if ! aws lambda get-function --function-name $FUNCTION_NAME > /dev/null 2>&1; then
                         echo "Creating new Lambda function..."
                         aws lambda create-function \
@@ -224,51 +193,36 @@ pipeline:
                           --zip-file fileb://$ZIP_FILE \
                           --layers arn:aws:lambda:us-east-1:529088259986:layer:hey-world-deps-$ENV_NAME:$LAYER_VERSION \
                           --timeout 30 \
-                          --memory-size 256 \
-                          --description "Hey World Lambda function - $ENV_NAME environment"
-                        
-                        echo "Waiting for function to become active..."
+                          --memory-size 256
                         aws lambda wait function-active --function-name $FUNCTION_NAME
-                        echo "Function created successfully"
                       else
                         echo "Updating existing Lambda function..."
-                        # Update function code
                         aws lambda update-function-code \
                           --function-name $FUNCTION_NAME \
                           --zip-file fileb://$ZIP_FILE
-                        
-                        echo "Waiting for function update to complete..."
                         aws lambda wait function-updated --function-name $FUNCTION_NAME
-                        
-                        # Update function configuration
                         aws lambda update-function-configuration \
                           --function-name $FUNCTION_NAME \
                           --layers arn:aws:lambda:us-east-1:529088259986:layer:hey-world-deps-$ENV_NAME:$LAYER_VERSION \
                           --timeout 30 \
                           --memory-size 256
-                        
-                        echo "Function updated successfully"
                       fi
 
-                      # Get function ARN for output
                       FUNCTION_ARN=$(aws lambda get-function \
                         --function-name $FUNCTION_NAME \
                         --query 'Configuration.FunctionArn' \
                         --output text)
-
                       echo "Lambda function deployed: $FUNCTION_ARN"
               - step:
                   name: Setup_CloudWatch_Schedule
                   identifier: Setup_CloudWatch_Schedule
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |
                       export AWS_DEFAULT_REGION=us-east-1
-
-                      # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
                         ENV_NAME="dev"
@@ -279,32 +233,25 @@ pipeline:
                       SCHEDULE="rate(5 minutes)"
                       STATEMENT_ID="cw-invoke-$ENV_NAME"
 
-                      echo "Creating CloudWatch Events rule: $RULE_NAME"
                       aws events put-rule \
                         --name $RULE_NAME \
                         --schedule-expression "$SCHEDULE" \
-                        --state ENABLED \
-                        --description "Trigger hey-world Lambda every 5 minutes - $ENV_NAME"
+                        --state ENABLED
 
-                      # Get Lambda function ARN
                       FUNCTION_ARN=$(aws lambda get-function \
                         --function-name $FUNCTION_NAME \
                         --query 'Configuration.FunctionArn' \
                         --output text)
 
-                      echo "Adding Lambda as target to CloudWatch rule..."
                       aws events put-targets \
                         --rule $RULE_NAME \
                         --targets "Id"="1","Arn"="$FUNCTION_ARN"
 
-                      # Get rule ARN
                       SOURCE_ARN=$(aws events describe-rule \
                         --name $RULE_NAME \
                         --query 'Arn' \
                         --output text)
 
-                      # Add permission for CloudWatch to invoke Lambda
-                      echo "Granting CloudWatch permission to invoke Lambda..."
                       if ! aws lambda get-policy --function-name $FUNCTION_NAME 2>/dev/null | grep -q $STATEMENT_ID; then
                         aws lambda add-permission \
                           --function-name $FUNCTION_NAME \
@@ -312,45 +259,31 @@ pipeline:
                           --action 'lambda:InvokeFunction' \
                           --principal events.amazonaws.com \
                           --source-arn $SOURCE_ARN
-                        echo "Permission added successfully"
-                      else
-                        echo "Permission already exists, skipping..."
                       fi
-
                       echo "CloudWatch schedule setup complete"
               - step:
                   name: Test_Lambda_Function
                   identifier: Test_Lambda_Function
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |
                       export AWS_DEFAULT_REGION=us-east-1
-
-                      # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
                         ENV_NAME="dev"
                       fi
 
                       FUNCTION_NAME="hey-world-demo-$ENV_NAME"
-
-                      echo "Testing Lambda function: $FUNCTION_NAME"
                       RESPONSE=$(aws lambda invoke \
                         --function-name $FUNCTION_NAME \
                         --payload '{}' \
                         --cli-binary-format raw-in-base64-out \
                         lambda-response.json)
-
-                      echo "Invoke response:"
-                      echo "$RESPONSE"
-
-                      echo "Function output:"
+                      echo "Invoke response: $RESPONSE"
                       cat lambda-response.json
-
-                      # Check if invocation was successful
                       if echo "$RESPONSE" | grep -q '"StatusCode": 200'; then
                         echo "Lambda test successful!"
                       else
