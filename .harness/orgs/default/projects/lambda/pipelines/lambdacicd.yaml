@@ -38,6 +38,9 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
+                      echo "Installing system dependencies..."
+                      apt-get update && apt-get install -y zip
+
                       echo "Installing Python dependencies..."
                       mkdir -p python
                       pip install -r test/devtest/requirements.txt -t python
@@ -53,6 +56,9 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
+                      echo "Installing zip utility..."
+                      apt-get update && apt-get install -y zip
+
                       echo "Zipping Lambda function code..."
                       cd test
                       zip -r ../lambda_package.zip devtest \
@@ -98,6 +104,9 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
+                      echo "Installing system dependencies..."
+                      apt-get update && apt-get install -y zip
+
                       echo "Installing Python dependencies..."
                       mkdir -p python
                       pip install -r test/devtest/requirements.txt -t python
@@ -113,6 +122,9 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
+                      echo "Installing zip utility..."
+                      apt-get update && apt-get install -y zip
+
                       echo "Zipping Lambda function code..."
                       cd test
                       zip -r ../lambda_package.zip devtest \
@@ -194,7 +206,7 @@ pipeline:
                           --timeout 30 \
                           --memory-size 256 \
                           --description "Hey World Lambda function - <+env.name> environment"
-                       
+                        
                         echo "Waiting for function to become active..."
                         aws lambda wait function-active --function-name $FUNCTION_NAME
                         echo "Function created successfully"
@@ -204,17 +216,17 @@ pipeline:
                         aws lambda update-function-code \
                           --function-name $FUNCTION_NAME \
                           --zip-file fileb://$ZIP_FILE
-                       
+                        
                         echo "Waiting for function update to complete..."
                         aws lambda wait function-updated --function-name $FUNCTION_NAME
-                       
+                        
                         # Update function configuration
                         aws lambda update-function-configuration \
                           --function-name $FUNCTION_NAME \
                           --layers arn:aws:lambda:us-east-1:529088259986:layer:hey-world-deps-<+env.name>:$LAYER_VERSION \
                           --timeout 30 \
                           --memory-size 256
-                       
+                        
                         echo "Function updated successfully"
                       fi
 
