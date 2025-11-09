@@ -7,8 +7,8 @@ pipeline:
   properties:
     ci:
       codebase:
-        connectorRef: githupharness
-        repoName: AngelsTech/aws-lambda-demo
+        connectorRef: <+input>
+        repoName: aws-lambda-demo
         build: <+input>
   stages:
     - stage:
@@ -209,7 +209,7 @@ pipeline:
                           --timeout 30 \
                           --memory-size 256 \
                           --description "Hey World Lambda function - <+env.name> environment"
-                        
+                       
                         echo "Waiting for function to become active..."
                         aws lambda wait function-active --function-name $FUNCTION_NAME
                         echo "Function created successfully"
@@ -219,17 +219,17 @@ pipeline:
                         aws lambda update-function-code \
                           --function-name $FUNCTION_NAME \
                           --zip-file fileb://$ZIP_FILE
-                        
+                       
                         echo "Waiting for function update to complete..."
                         aws lambda wait function-updated --function-name $FUNCTION_NAME
-                        
+                       
                         # Update function configuration
                         aws lambda update-function-configuration \
                           --function-name $FUNCTION_NAME \
                           --layers arn:aws:lambda:us-east-1:529088259986:layer:hey-world-deps-<+env.name>:$LAYER_VERSION \
                           --timeout 30 \
                           --memory-size 256
-                        
+                       
                         echo "Function updated successfully"
                       fi
 
