@@ -33,6 +33,8 @@ pipeline:
               os: Linux
           caching:
             enabled: false
+          sharedPaths:
+            - /harness
           execution:
             steps:
               - step:
@@ -51,6 +53,10 @@ pipeline:
                       mkdir -p python
                       pip install -r test/devtest/requirements.txt -t python
                       zip -r layer_package.zip python
+
+                      # Save to shared path for Deploy stage
+                      cp layer_package.zip /harness/
+
                       echo "Layer package created successfully"
                       ls -lh layer_package.zip
                     outputVariables:
@@ -81,6 +87,9 @@ pipeline:
                         -x "**/*.pyc"
                       cd ..
 
+                      # Save to shared path for Deploy stage
+                      cp lambda_package.zip /harness/
+
                       echo "Lambda package contents:"
                       unzip -l lambda_package.zip
                       echo "Package size:"
@@ -94,7 +103,7 @@ pipeline:
         identifier: Deploy_Lambda
         type: CI
         spec:
-          cloneCodebase: true
+          cloneCodebase: false
           infrastructure:
             type: KubernetesDirect
             spec:
@@ -105,49 +114,44 @@ pipeline:
               os: Linux
           caching:
             enabled: false
+          sharedPaths:
+            - /harness
           execution:
             steps:
               - step:
-                  name: Rebuild_Packages
-                  identifier: Rebuild_Packages
+                  name: Download_Artifacts_From_Build
+                  identifier: Download_Artifacts_From_Build
                   type: Run
                   spec:
                     connectorRef: eksconnector
-                    image: python:3.13
+                    image: busybox:latest
                     shell: Sh
                     command: |
-                      echo "Installing system dependencies..."
-                      apt-get update -qq && apt-get install -y -qq zip unzip > /dev/null 2>&1
+                      echo "Checking for build artifacts..."
+                      # Artifacts should be in shared path from Build stage
+                      if [ ! -f "/harness/layer_package.zip" ] || [ ! -f "/harness/lambda_package.zip" ]; then
+                        echo "ERROR: Build artifacts not found!"
+                        echo "Build stage must complete successfully first."
+                        exit 1
+                      fi
 
-                      echo "Installing Python dependencies..."
-                      mkdir -p python
-                      pip install -q -r test/devtest/requirements.txt -t python
-                      zip -q -r layer_package.zip python
-                      echo "✓ Layer package created: $(ls -lh layer_package.zip | awk '{print $5}')"
+                      # Copy to current directory
+                      cp /harness/layer_package.zip .
+                      cp /harness/lambda_package.zip .
 
-                      echo "Packaging Lambda function..."
-                      cd test
-                      zip -q -r ../lambda_package.zip devtest \
-                        -x "**/.git/*" \
-                        -x "**/README.md" \
-                        -x "**/Jenkinsfile" \
-                        -x "**/__pycache__/*" \
-                        -x "**/*.pyc"
-                      cd ..
-                      echo "✓ Lambda package created: $(ls -lh lambda_package.zip | awk '{print $5}')"
+                      echo "✓ Artifacts ready:"
+                      ls -lh *.zip
               - step:
                   name: Publish_Lambda_Layer
                   identifier: Publish_Lambda_Layer
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
-                      AWS_DEFAULT_REGION: us-east-1
                     command: |
+                      export AWS_DEFAULT_REGION=us-east-1
+
                       # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
@@ -175,14 +179,11 @@ pipeline:
                   identifier: Deploy_Lambda_Function
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
-                      AWS_DEFAULT_REGION: us-east-1
                     command: |
+                      export AWS_DEFAULT_REGION=us-east-1
                       # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
@@ -259,14 +260,11 @@ pipeline:
                   identifier: Setup_CloudWatch_Schedule
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
-                      AWS_DEFAULT_REGION: us-east-1
                     command: |
+                      export AWS_DEFAULT_REGION=us-east-1
                       # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
@@ -322,14 +320,11 @@ pipeline:
                   identifier: Test_Lambda_Function
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("aws_access_key_id")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
-                      AWS_DEFAULT_REGION: us-east-1
                     command: |
+                      export AWS_DEFAULT_REGION=us-east-1
                       # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
