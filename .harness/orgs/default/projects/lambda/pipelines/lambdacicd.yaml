@@ -1,5 +1,5 @@
 pipeline:
-  name: lambda pipeline
+  name: LambdaPipeline
   identifier: lambdacicd
   projectIdentifier: lambda
   orgIdentifier: default
@@ -20,64 +20,75 @@ pipeline:
         type: CI
         spec:
           cloneCodebase: true
-          platform:
-            os: Linux
-            arch: Amd64
-          runtime:
-            type: Cloud
-            spec: {}
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: eksconnector
+              namespace: default
+              os: Linux
           execution:
             steps:
               - step:
                   type: Run
-                  name: Zip Files
-                  identifier: Zip_Files
+                  name: Build_and_Zip
+                  identifier: Build_and_Zip
                   spec:
+                    connectorRef: eksconnector
+                    image: python:3.9
                     shell: Sh
                     command: |
-                      # Zip the AWS Lambda function code
+                      pip install -r requirements.txt
                       zip -r function.zip .
               - step:
-                  type: S3Upload
-                  name: Upload Zip to S3
-                  identifier: Upload_Zip_to_S3
+                  type: Run
+                  name: Upload_to_S3
+                  identifier: Upload_to_S3
                   spec:
-                    connectorRef: AWS_S3
-                    region: us-east-1
-                    bucket: YOUR_S3_BUCKET
-                    sourcePath: function.zip
-                    target: <+pipeline.name>/<+pipeline.sequenceId>
+                    connectorRef: eksconnector
+                    image: amazon/aws-cli:2.15.0
+                    shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: <+secrets.getValue("ACCESS_KEY_ID")>
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("SECRET_ACCESS_KEY")>
+                    command: |
+                      aws s3 cp function.zip s3://mybucket/function.zip
     - stage:
         name: Deploy_Lambda
         identifier: Deploy_Lambda
         type: CI
         spec:
           cloneCodebase: false
-          platform:
-            os: Linux
-            arch: Amd64
-          runtime:
-            type: Cloud
-            spec: {}
+          infrastructure:
+            type: KubernetesDirect
+            spec:
+              connectorRef: eksconnector
+              namespace: default
+              os: Linux
           execution:
             steps:
               - step:
                   type: Run
-                  name: Deploy Lambda
-                  identifier: Deploy_Lambda
+                  name: Download_from_S3
+                  identifier: Download_from_S3
                   spec:
-                    connectorRef: dockerhub
-                    image: amazon/aws-cli:2
+                    connectorRef: eksconnector
+                    image: amazon/aws-cli:2.15.0
                     shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: <+secrets.getValue("ACCESS_KEY_ID")>
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("SECRET_ACCESS_KEY")>
                     command: |
-                      # Download the zip from S3
-                      aws s3 cp s3://YOUR_S3_BUCKET/<+pipeline.name>/<+pipeline.sequenceId>/function.zip function.zip
-                      # Update the AWS Lambda function code
-                      aws lambda update-function-code --function-name YOUR_LAMBDA_FUNCTION_NAME --zip-file fileb://function.zip --region us-east-1
-                    environmentVariables:
-                      - name: AWS_ACCESS_KEY_ID
-                        type: Secret
-                        value: <+secrets.getValue("ACCESS_KEY_ID")>
-                      - name: AWS_SECRET_ACCESS_KEY
-                        type: Secret
-                        value: <+secrets.getValue("SECRET_ACCESS_KEY")>
+                      aws s3 cp s3://mybucket/function.zip function.zip
+              - step:
+                  type: Run
+                  name: Update_Lambda
+                  identifier: Update_Lambda
+                  spec:
+                    connectorRef: eksconnector
+                    image: amazon/aws-cli:2.15.0
+                    shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: <+secrets.getValue("ACCESS_KEY_ID")>
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("SECRET_ACCESS_KEY")>
+                    command: |
+                      aws lambda update-function-code --function-name MyLambdaFunction --zip-file fileb://function.zip
