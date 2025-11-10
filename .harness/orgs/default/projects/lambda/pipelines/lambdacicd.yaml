@@ -148,12 +148,14 @@ pipeline:
                   identifier: Publish_Lambda_Layer
                   type: Run
                   spec:
-                    connectorRef: awsconnector
+                    connectorRef: eksconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: <+secrets.getValue("ACCESS_KEY_ID")>
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("ACCESS_KEY_ID")>
+                      AWS_DEFAULT_REGION: us-east-1
                     command: |
-                      export AWS_DEFAULT_REGION=us-east-1
-
                       # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
