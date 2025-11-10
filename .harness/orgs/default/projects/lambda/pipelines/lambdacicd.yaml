@@ -152,8 +152,8 @@ pipeline:
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("ACCESS_KEY_ID")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("ACCESS_KEY_ID")>
+                      AWS_ACCESS_KEY_ID: <+secrets.getValue("account.ACCESS_KEY_ID")>
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
                       # Get environment from pipeline variable or default to dev
