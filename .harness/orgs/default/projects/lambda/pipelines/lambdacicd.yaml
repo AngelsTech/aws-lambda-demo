@@ -1,5 +1,5 @@
 pipeline:
-  name: aws_lambda
+  name: lambdacicd
   identifier: lambdacicd
   projectIdentifier: lambda
   orgIdentifier: default
@@ -152,8 +152,8 @@ pipeline:
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("account.ACCESS_KEY_ID")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
+                      AWS_ACCESS_KEY_ID: AKIAXWMA6E6JEQVTS65M
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
                       # Get environment from pipeline variable or default to dev
