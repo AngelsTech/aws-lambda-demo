@@ -34,7 +34,7 @@ pipeline:
           caching:
             enabled: false
           sharedPaths:
-            - /harness
+            - /tmp/lambda-artifacts
           execution:
             steps:
               - step:
@@ -55,7 +55,8 @@ pipeline:
                       zip -r layer_package.zip python
 
                       # Save to shared path for Deploy stage
-                      cp layer_package.zip /harness/
+                      mkdir -p /tmp/lambda-artifacts
+                      cp layer_package.zip /tmp/lambda-artifacts/
 
                       echo "Layer package created successfully"
                       ls -lh layer_package.zip
@@ -88,7 +89,8 @@ pipeline:
                       cd ..
 
                       # Save to shared path for Deploy stage
-                      cp lambda_package.zip /harness/
+                      mkdir -p /tmp/lambda-artifacts
+                      cp lambda_package.zip /tmp/lambda-artifacts/
 
                       echo "Lambda package contents:"
                       unzip -l lambda_package.zip
@@ -115,7 +117,7 @@ pipeline:
           caching:
             enabled: false
           sharedPaths:
-            - /harness
+            - /tmp/lambda-artifacts
           execution:
             steps:
               - step:
@@ -129,15 +131,15 @@ pipeline:
                     command: |
                       echo "Checking for build artifacts..."
                       # Artifacts should be in shared path from Build stage
-                      if [ ! -f "/harness/layer_package.zip" ] || [ ! -f "/harness/lambda_package.zip" ]; then
+                      if [ ! -f "/tmp/lambda-artifacts/layer_package.zip" ] || [ ! -f "/tmp/lambda-artifacts/lambda_package.zip" ]; then
                         echo "ERROR: Build artifacts not found!"
                         echo "Build stage must complete successfully first."
                         exit 1
                       fi
 
                       # Copy to current directory
-                      cp /harness/layer_package.zip .
-                      cp /harness/lambda_package.zip .
+                      cp /tmp/lambda-artifacts/layer_package.zip .
+                      cp /tmp/lambda-artifacts/lambda_package.zip .
 
                       echo "✓ Artifacts ready:"
                       ls -lh *.zip
