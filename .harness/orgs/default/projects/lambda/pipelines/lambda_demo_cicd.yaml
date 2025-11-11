@@ -91,14 +91,14 @@ pipeline:
                       # -----------------------------
                       # Package Lambda layer
                       # -----------------------------
-                      mkdir -p python
+                      mkdir python
                       pip install -r test/devtest/requirements.txt -t python
                       zip -r layer_package.zip python
 
                       # -----------------------------
                       # Save artifacts to shared path
                       # -----------------------------
-                      mkdir -p $HARNESS_ARTIFACT_DIR
+                      mkdir $HARNESS_ARTIFACT_DIR
                       cp lambda_package.zip $HARNESS_ARTIFACT_DIR/
                       cp layer_package.zip $HARNESS_ARTIFACT_DIR/
 
