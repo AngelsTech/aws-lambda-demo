@@ -178,18 +178,9 @@ pipeline:
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |-
-                      echo "Checking for build artifacts..."
-
-                      # Use the output variables from the build step
-                      if [ ! -f "$LAYER_PACKAGE" ] || [ ! -f "$LAMBDA_PACKAGE" ]; then
-                        echo "ERROR: Build artifacts not found!"
-                        echo "Build stage must complete successfully first."
-                        exit 1
-                      fi
-
-                      # Copy to current directory
-                      cp "$LAYER_PACKAGE" .
-                      cp "$LAMBDA_PACKAGE" .
+                      echo "Downloading build artifacts..."
+                      cp $ARTIFACTS_DIR/lambda_package.zip .
+                      cp $ARTIFACTS_DIR/layer_package.zip .
 
                       echo "✓ Artifacts ready:"
                       ls -lh *.zip
