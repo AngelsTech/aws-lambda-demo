@@ -1,0 +1,12 @@
+infrastructureDefinition:
+  name: dt-infra
+  identifier: dtinfra
+  orgIdentifier: default
+  projectIdentifier: lambda
+  environmentRef: dt
+  deploymentType: AwsLambda
+  type: AwsLambda
+  spec:
+    connectorRef: awsconnector
+    region: us-east-2
+  allowSimultaneousDeployments: true
