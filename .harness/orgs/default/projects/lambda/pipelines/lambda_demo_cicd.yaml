@@ -70,8 +70,8 @@ pipeline:
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("account.ACCESS_KEY_ID")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
+                      AWS_ACCESS_KEY_ID: AKIAXWMA6E6JEQVTS65M
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
                       ENV_NAME="<+pipeline.variables.environment>"
@@ -128,6 +128,55 @@ pipeline:
 
                       echo "Lambda deployed: $FUNCTION_NAME"
               - step:
+                  name: Setup_CloudWatch
+                  identifier: Setup_CloudWatch
+                  type: Run
+                  spec:
+                    connectorRef: eksconnector
+                    image: amazon/aws-cli:2.15.0
+                    shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: AKIAXWMA6E6JEQVTS65M
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
+                      AWS_DEFAULT_REGION: us-east-1
+                    command: |
+                      ENV_NAME="<+pipeline.variables.environment>"
+                      FUNCTION_NAME="hey-world-demo-$ENV_NAME"
+                      RULE_NAME="hello-world-schedule-$ENV_NAME"
+                      STATEMENT_ID="cw-invoke-$ENV_NAME"
+
+                      echo "Setting up CloudWatch schedule for $FUNCTION_NAME..."
+                      aws events put-rule \
+                        --name $RULE_NAME \
+                        --schedule-expression "rate(5 minutes)" \
+                        --state ENABLED \
+                        --description "Trigger Lambda every 5 minutes"
+
+                      FUNCTION_ARN=$(aws lambda get-function \
+                        --function-name $FUNCTION_NAME \
+                        --query 'Configuration.FunctionArn' \
+                        --output text)
+
+                      aws events put-targets \
+                        --rule $RULE_NAME \
+                        --targets "Id"="1","Arn"="$FUNCTION_ARN"
+
+                      SOURCE_ARN=$(aws events describe-rule \
+                        --name $RULE_NAME \
+                        --query 'Arn' \
+                        --output text)
+
+                      if ! aws lambda get-policy --function-name $FUNCTION_NAME 2>/dev/null | grep -q $STATEMENT_ID; then
+                        aws lambda add-permission \
+                          --function-name $FUNCTION_NAME \
+                          --statement-id $STATEMENT_ID \
+                          --action 'lambda:InvokeFunction' \
+                          --principal events.amazonaws.com \
+                          --source-arn $SOURCE_ARN
+                      fi
+
+                      echo "✓ CloudWatch schedule configured"
+              - step:
                   name: Test_Lambda
                   identifier: Test_Lambda
                   type: Run
@@ -136,16 +185,24 @@ pipeline:
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("account.ACCESS_KEY_ID")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
+                      AWS_ACCESS_KEY_ID: AKIAXWMA6E6JEQVTS65M
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
                       FUNCTION_NAME="hey-world-demo-<+pipeline.variables.environment>"
                       echo "Testing Lambda: $FUNCTION_NAME"
-                      RESPONSE=$(aws lambda invoke --function-name $FUNCTION_NAME --payload '{}' --cli-binary-format raw-in-base64-out lambda-response.json)
+                      RESPONSE=$(aws lambda invoke \
+                        --function-name $FUNCTION_NAME \
+                        --payload '{}' \
+                        --cli-binary-format raw-in-base64-out \
+                        lambda-response.json)
+
+                      echo "Response:"
                       cat lambda-response.json
+
                       if echo "$RESPONSE" | grep -q '"StatusCode": 200'; then
                         echo "✓ Lambda test successful"
                       else
                         echo "✗ Lambda test failed"
                         exit 1
+                      fi
