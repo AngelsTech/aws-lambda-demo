@@ -125,10 +125,10 @@ pipeline:
                   identifier: Download_Artifacts_From_Build
                   type: Run
                   spec:
-                    connectorRef: eksconnector
+                    connectorRef: awsconnector
                     image: busybox:latest
                     shell: Sh
-                    command: |
+                    command: |-
                       echo "Checking for build artifacts..."
                       # Artifacts should be in shared path from Build stage
                       if [ ! -f "/tmp/lambda-artifacts/layer_package.zip" ] || [ ! -f "/tmp/lambda-artifacts/lambda_package.zip" ]; then
