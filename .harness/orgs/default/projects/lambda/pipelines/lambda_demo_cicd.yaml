@@ -126,7 +126,7 @@ pipeline:
                   type: Run
                   spec:
                     connectorRef: awsconnector
-                    image: busybox:latest
+                    image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |-
                       echo "Checking for build artifacts..."
