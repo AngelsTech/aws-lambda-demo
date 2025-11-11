@@ -105,6 +105,11 @@ pipeline:
 
                       # Verify artifacts
                       ls -lh "$HARNESS_ARTIFACT_DIR"/
+                    artifacts:
+                      primary:
+                        paths:
+                          - /tmp/harness-artifacts/lambda_package.zip
+                          - /tmp/harness-artifacts/layer_package.zip
             "":
               type: Run
               name: package_lambda
