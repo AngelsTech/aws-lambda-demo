@@ -184,9 +184,9 @@ pipeline:
 
                       echo "Copying artifacts to current directory..."
                       if [ -f "$HARNESS_ARTIFACT_DIR/lambda_package.zip" ] && [ -f "$HARNESS_ARTIFACT_DIR/layer_package.zip" ]; then
-                          cp "$HARNESS_ARTIFACT_DIR/lambda_package.zip" .
-                          cp "$HARNESS_ARTIFACT_DIR/layer_package.zip" .
-                          echo "✓ Artifacts ready:"
+                          cp $ARTIFACTS_DIR/lambda_package.zip .
+                          cp $ARTIFACTS_DIR/layer_package.zip .
+                          echo "Artifacts ready:"
                           ls -lh *.zip
                       else
                           echo "ERROR: Artifacts not found in $HARNESS_ARTIFACT_DIR"
