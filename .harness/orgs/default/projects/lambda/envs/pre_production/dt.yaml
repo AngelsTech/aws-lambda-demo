@@ -1,6 +1,0 @@
-environment:
-  name: dt
-  identifier: dt
-  orgIdentifier: default
-  projectIdentifier: lambda
-  type: PreProduction
