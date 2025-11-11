@@ -179,15 +179,17 @@ pipeline:
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |-
-                      echo "Downloading build artifacts from previous stage..."
+                      # Ensure HARNESS_ARTIFACT_DIR is set
+                      : ${HARNESS_ARTIFACT_DIR:=/tmp/harness-artifacts}
 
-                      if [ -f "$ARTIFACTS_DIR/lambda_package.zip" ] && [ -f "$ARTIFACTS_DIR/layer_package.zip" ]; then
-                          cp "$ARTIFACTS_DIR/lambda_package.zip" .
-                          cp "$ARTIFACTS_DIR/layer_package.zip" .
-                          echo "✓ Artifacts ready:"
+                      echo "Copying artifacts to current directory..."
+                      if [ -f "$HARNESS_ARTIFACT_DIR/lambda_package.zip" ] && [ -f "$HARNESS_ARTIFACT_DIR/layer_package.zip" ]; then
+                          cp $ARTIFACTS_DIR/lambda_package.zip .
+                          cp $ARTIFACTS_DIR/layer_package.zip .
+                          echo "Artifacts ready:"
                           ls -lh *.zip
                       else
-                          echo "ERROR: Artifacts not found in $ARTIFACTS_DIR"
+                          echo "ERROR: Artifacts not found in $HARNESS_ARTIFACT_DIR"
                           exit 1
                       fi
               - step:
