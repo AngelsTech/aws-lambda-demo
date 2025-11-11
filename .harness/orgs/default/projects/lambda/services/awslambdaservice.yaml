@@ -1,0 +1,5 @@
+service:
+  name: aws-lambda-service
+  identifier: awslambdaservice
+  orgIdentifier: default
+  projectIdentifier: lambda
