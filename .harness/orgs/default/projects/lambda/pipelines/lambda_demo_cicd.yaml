@@ -29,6 +29,11 @@ pipeline:
               namespace: harness-delegate-ng
               automountServiceAccountToken: true
               os: Linux
+              nodeSelector: {}
+          caching:
+            enabled: false
+          sharedPaths:
+            - /tmp/lambda-artifacts
           execution:
             steps:
               - step:
@@ -45,7 +50,12 @@ pipeline:
 
                       echo "Packaging Lambda function..."
                       cd test
-                      zip -r ../lambda_package.zip devtest -x "**/.git/*" -x "**/__pycache__/*"
+                      zip -r ../lambda_package.zip devtest \
+                        -x "**/.git/*" \
+                        -x "**/README.md" \
+                        -x "**/Jenkinsfile" \
+                        -x "**/__pycache__/*" \
+                        -x "**/*.pyc"
                       cd ..
 
                       echo "Building Lambda layer..."
@@ -53,13 +63,18 @@ pipeline:
                       pip install -r test/devtest/requirements.txt -t python
                       zip -r layer_package.zip python
 
+                      echo "Saving artifacts..."
+                      mkdir -p /tmp/lambda-artifacts
+                      cp lambda_package.zip /tmp/lambda-artifacts/
+                      cp layer_package.zip /tmp/lambda-artifacts/
+
                       echo "Artifacts created:"
-                      ls -lh lambda_package.zip layer_package.zip
+                      ls -lh /tmp/lambda-artifacts/
                     artifacts:
                       primary:
                         paths:
-                          - lambda_package.zip
-                          - layer_package.zip
+                          - /tmp/lambda-artifacts/lambda_package.zip
+                          - /tmp/lambda-artifacts/layer_package.zip
     - stage:
         name: Deploy_Lambda
         identifier: Deploy_Lambda
@@ -73,6 +88,11 @@ pipeline:
               namespace: harness-delegate-ng
               automountServiceAccountToken: true
               os: Linux
+              nodeSelector: {}
+          caching:
+            enabled: false
+          sharedPaths:
+            - /tmp/lambda-artifacts
           execution:
             steps:
               - step:
@@ -84,9 +104,14 @@ pipeline:
                     image: busybox:latest
                     shell: Sh
                     command: |
-                      echo "Copying artifacts from Harness..."
-                      cp $ARTIFACTS_DIR/lambda_package.zip .
-                      cp $ARTIFACTS_DIR/layer_package.zip .
+                      echo "Copying artifacts from shared path..."
+                      if [ ! -f "/tmp/lambda-artifacts/lambda_package.zip" ] || [ ! -f "/tmp/lambda-artifacts/layer_package.zip" ]; then
+                        echo "ERROR: Build artifacts not found!"
+                        ls -lh /tmp/lambda-artifacts || true
+                        exit 1
+                      fi
+                      cp /tmp/lambda-artifacts/lambda_package.zip .
+                      cp /tmp/lambda-artifacts/layer_package.zip .
                       ls -lh
               - step:
                   name: Publish_Lambda_Layer
@@ -133,8 +158,6 @@ pipeline:
                       AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
-                      cp $ARTIFACTS_DIR/lambda_package.zip . || true
-
                       ENV_NAME="<+pipeline.variables.environment>"
                       [ -z "$ENV_NAME" ] && ENV_NAME="dev"
 
@@ -200,14 +223,23 @@ pipeline:
                       STATEMENT_ID="cw-invoke-$ENV_NAME"
 
                       echo "Creating CloudWatch rule: $RULE_NAME"
-                      aws events put-rule --name $RULE_NAME --schedule-expression "$SCHEDULE" --state ENABLED --description "Trigger Lambda every 5 minutes - $ENV_NAME"
+                      aws events put-rule \
+                        --name $RULE_NAME \
+                        --schedule-expression "$SCHEDULE" \
+                        --state ENABLED \
+                        --description "Trigger hey-world Lambda every 5 minutes - $ENV_NAME"
 
                       FUNCTION_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.FunctionArn' --output text)
                       aws events put-targets --rule $RULE_NAME --targets "Id"="1","Arn"="$FUNCTION_ARN"
 
                       SOURCE_ARN=$(aws events describe-rule --name $RULE_NAME --query 'Arn' --output text)
                       if ! aws lambda get-policy --function-name $FUNCTION_NAME 2>/dev/null | grep -q $STATEMENT_ID; then
-                        aws lambda add-permission --function-name $FUNCTION_NAME --statement-id $STATEMENT_ID --action 'lambda:InvokeFunction' --principal events.amazonaws.com --source-arn $SOURCE_ARN
+                        aws lambda add-permission \
+                          --function-name $FUNCTION_NAME \
+                          --statement-id $STATEMENT_ID \
+                          --action 'lambda:InvokeFunction' \
+                          --principal events.amazonaws.com \
+                          --source-arn $SOURCE_ARN
                         echo "Permission added"
                       else
                         echo "Permission already exists"
@@ -226,7 +258,7 @@ pipeline:
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
                       FUNCTION_NAME="hey-world-demo-<+pipeline.variables.environment>"
-                      echo "Testing Lambda: $FUNCTION_NAME"
+                      echo "Testing Lambda function: $FUNCTION_NAME"
                       RESPONSE=$(aws lambda invoke --function-name $FUNCTION_NAME --payload '{}' --cli-binary-format raw-in-base64-out lambda-response.json)
                       echo "$RESPONSE"
                       cat lambda-response.json
