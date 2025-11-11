@@ -76,14 +76,10 @@ pipeline:
                       # Install system dependencies
                       apt-get update && apt-get install -y zip unzip python3-pip
 
-                      # -----------------------------
                       # Clean previous artifacts
-                      # -----------------------------
                       rm -rf lambda_package.zip layer_package.zip python
 
-                      # -----------------------------
                       # Package Lambda function
-                      # -----------------------------
                       cd test
                       zip -r ../lambda_package.zip devtest \
                         -x "**/.git/*" \
@@ -93,24 +89,22 @@ pipeline:
                         -x "**/*.pyc"
                       cd ..
 
-                      # -----------------------------
                       # Package Lambda layer
-                      # -----------------------------
+                      rm -rf python
                       mkdir -p python
                       pip install -r test/devtest/requirements.txt -t python
                       zip -r layer_package.zip python
 
-                      # -----------------------------
-                      # Save artifacts to shared path
-                      # -----------------------------
-                      mkdir -p $HARNESS_ARTIFACT_DIR
-                      cp lambda_package.zip $HARNESS_ARTIFACT_DIR/
-                      cp layer_package.zip $HARNESS_ARTIFACT_DIR/
+                      # Ensure artifact dir exists
+                      : ${HARNESS_ARTIFACT_DIR:=/tmp/harness-artifacts}
+                      mkdir -p "$HARNESS_ARTIFACT_DIR"
 
-                      # -----------------------------
+                      # Copy artifacts
+                      cp lambda_package.zip "$HARNESS_ARTIFACT_DIR"/
+                      cp layer_package.zip "$HARNESS_ARTIFACT_DIR"/
+
                       # Verify artifacts
-                      # -----------------------------
-                      ls -lh $HARNESS_ARTIFACT_DIR/
+                      ls -lh "$HARNESS_ARTIFACT_DIR"/
             "":
               type: Run
               name: package_lambda
@@ -180,12 +174,19 @@ pipeline:
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |-
-                      echo "Copying artifacts to current directory..."
-                      cp $HARNESS_ARTIFACT_DIR/lambda_package.zip .
-                      cp $HARNESS_ARTIFACT_DIR/layer_package.zip .
+                      # Ensure HARNESS_ARTIFACT_DIR is set
+                      : ${HARNESS_ARTIFACT_DIR:=/tmp/harness-artifacts}
 
-                      echo "✓ Artifacts ready:"
-                      ls -lh *.zip
+                      echo "Copying artifacts to current directory..."
+                      if [ -f "$HARNESS_ARTIFACT_DIR/lambda_package.zip" ] && [ -f "$HARNESS_ARTIFACT_DIR/layer_package.zip" ]; then
+                          cp "$HARNESS_ARTIFACT_DIR/lambda_package.zip" .
+                          cp "$HARNESS_ARTIFACT_DIR/layer_package.zip" .
+                          echo "✓ Artifacts ready:"
+                          ls -lh *.zip
+                      else
+                          echo "ERROR: Artifacts not found in $HARNESS_ARTIFACT_DIR"
+                          exit 1
+                      fi
               - step:
                   name: Publish_Lambda_Layer
                   identifier: Publish_Lambda_Layer
