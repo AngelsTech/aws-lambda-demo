@@ -104,6 +104,13 @@ pipeline:
 
                       # Verify artifacts
                       ls -lh /tmp/lambda-artifacts/
+                    outputVariables:
+                      - name: LAMBDA_PACKAGE
+                        type: String
+                        value: /tmp/lambda-artifacts/lambda_package.zip
+                      - name: LAYER_PACKAGE
+                        type: String
+                        value: /tmp/lambda-artifacts/layer_package.zip
             "":
               type: Run
               name: package_lambda
