@@ -96,24 +96,6 @@ pipeline:
           execution:
             steps:
               - step:
-                  name: Copy_Artifacts
-                  identifier: Copy_Artifacts
-                  type: Run
-                  spec:
-                    connectorRef: eksconnector
-                    image: busybox:latest
-                    shell: Sh
-                    command: |
-                      echo "Copying artifacts from shared path..."
-                      if [ ! -f "/tmp/lambda-artifacts/lambda_package.zip" ] || [ ! -f "/tmp/lambda-artifacts/layer_package.zip" ]; then
-                        echo "ERROR: Build artifacts not found!"
-                        ls -lh /tmp/lambda-artifacts || true
-                        exit 1
-                      fi
-                      cp /tmp/lambda-artifacts/lambda_package.zip .
-                      cp /tmp/lambda-artifacts/layer_package.zip .
-                      ls -lh
-              - step:
                   name: Publish_Lambda_Layer
                   identifier: Publish_Lambda_Layer
                   type: Run
@@ -131,6 +113,8 @@ pipeline:
 
                       LAYER_NAME="hey-world-deps-$ENV_NAME"
                       echo "Publishing Lambda Layer: $LAYER_NAME"
+
+                      cp /tmp/lambda-artifacts/layer_package.zip .  # Ensure layer exists
 
                       LAYER_VERSION=$(aws lambda publish-layer-version \
                         --layer-name $LAYER_NAME \
@@ -163,6 +147,8 @@ pipeline:
 
                       FUNCTION_NAME="hey-world-demo-$ENV_NAME"
                       ZIP_FILE="lambda_package.zip"
+                      cp /tmp/lambda-artifacts/lambda_package.zip .  # Ensure package exists
+
                       LAYER_VERSION="<+pipeline.stages.Deploy_Lambda.spec.execution.steps.Publish_Lambda_Layer.output.outputVariables.LAYER_VERSION>"
 
                       ROLE_ARN=""
@@ -201,49 +187,6 @@ pipeline:
 
                       FUNCTION_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.FunctionArn' --output text)
                       echo "Lambda deployed: $FUNCTION_ARN"
-              - step:
-                  name: Setup_CloudWatch_Schedule
-                  identifier: Setup_CloudWatch_Schedule
-                  type: Run
-                  spec:
-                    connectorRef: eksconnector
-                    image: amazon/aws-cli:2.15.0
-                    shell: Sh
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("account.ACCESS_KEY_ID")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
-                      AWS_DEFAULT_REGION: us-east-1
-                    command: |
-                      ENV_NAME="<+pipeline.variables.environment>"
-                      [ -z "$ENV_NAME" ] && ENV_NAME="dev"
-
-                      FUNCTION_NAME="hey-world-demo-$ENV_NAME"
-                      RULE_NAME="hello-world-schedule-$ENV_NAME"
-                      SCHEDULE="rate(5 minutes)"
-                      STATEMENT_ID="cw-invoke-$ENV_NAME"
-
-                      echo "Creating CloudWatch rule: $RULE_NAME"
-                      aws events put-rule \
-                        --name $RULE_NAME \
-                        --schedule-expression "$SCHEDULE" \
-                        --state ENABLED \
-                        --description "Trigger hey-world Lambda every 5 minutes - $ENV_NAME"
-
-                      FUNCTION_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.FunctionArn' --output text)
-                      aws events put-targets --rule $RULE_NAME --targets "Id"="1","Arn"="$FUNCTION_ARN"
-
-                      SOURCE_ARN=$(aws events describe-rule --name $RULE_NAME --query 'Arn' --output text)
-                      if ! aws lambda get-policy --function-name $FUNCTION_NAME 2>/dev/null | grep -q $STATEMENT_ID; then
-                        aws lambda add-permission \
-                          --function-name $FUNCTION_NAME \
-                          --statement-id $STATEMENT_ID \
-                          --action 'lambda:InvokeFunction' \
-                          --principal events.amazonaws.com \
-                          --source-arn $SOURCE_ARN
-                        echo "Permission added"
-                      else
-                        echo "Permission already exists"
-                      fi
               - step:
                   name: Test_Lambda_Function
                   identifier: Test_Lambda_Function
