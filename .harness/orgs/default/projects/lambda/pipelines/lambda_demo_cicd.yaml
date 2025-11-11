@@ -174,16 +174,17 @@ pipeline:
                     shell: Sh
                     command: |-
                       echo "Checking for build artifacts..."
-                      # Artifacts should be in shared path from Build stage
-                      if [ ! -f "/tmp/lambda-artifacts/layer_package.zip" ] || [ ! -f "/tmp/lambda-artifacts/lambda_package.zip" ]; then
+
+                      # Use the output variables from the build step
+                      if [ ! -f "$LAYER_PACKAGE" ] || [ ! -f "$LAMBDA_PACKAGE" ]; then
                         echo "ERROR: Build artifacts not found!"
                         echo "Build stage must complete successfully first."
                         exit 1
                       fi
 
                       # Copy to current directory
-                      cp /tmp/lambda-artifacts/layer_package.zip .
-                      cp /tmp/lambda-artifacts/lambda_package.zip .
+                      cp "$LAYER_PACKAGE" .
+                      cp "$LAMBDA_PACKAGE" .
 
                       echo "✓ Artifacts ready:"
                       ls -lh *.zip
