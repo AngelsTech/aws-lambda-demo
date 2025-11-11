@@ -17,8 +17,8 @@ pipeline:
         build: <+input>
   stages:
     - stage:
-        name: Build_and_Package
-        identifier: Build_and_Package
+        name: Build_and_Deploy
+        identifier: Build_and_Deploy
         type: CI
         spec:
           cloneCodebase: true
@@ -32,13 +32,11 @@ pipeline:
               nodeSelector: {}
           caching:
             enabled: false
-          sharedPaths:
-            - /tmp/lambda-artifacts
           execution:
             steps:
               - step:
-                  name: Package_Artifacts
-                  identifier: Package_Artifacts
+                  name: Build_Artifacts
+                  identifier: Build_Artifacts
                   type: Run
                   spec:
                     connectorRef: eksconnector
@@ -53,9 +51,7 @@ pipeline:
                       zip -r ../lambda_package.zip devtest \
                         -x "**/.git/*" \
                         -x "**/README.md" \
-                        -x "**/Jenkinsfile" \
-                        -x "**/__pycache__/*" \
-                        -x "**/*.pyc"
+                        -x "**/__pycache__/*"
                       cd ..
 
                       echo "Building Lambda layer..."
@@ -63,41 +59,11 @@ pipeline:
                       pip install -r test/devtest/requirements.txt -t python
                       zip -r layer_package.zip python
 
-                      echo "Saving artifacts..."
-                      mkdir -p /tmp/lambda-artifacts
-                      cp lambda_package.zip /tmp/lambda-artifacts/
-                      cp layer_package.zip /tmp/lambda-artifacts/
-
-                      echo "Artifacts created:"
-                      ls -lh /tmp/lambda-artifacts/
-                    artifacts:
-                      primary:
-                        paths:
-                          - /tmp/lambda-artifacts/lambda_package.zip
-                          - /tmp/lambda-artifacts/layer_package.zip
-    - stage:
-        name: Deploy_Lambda
-        identifier: Deploy_Lambda
-        type: CI
-        spec:
-          cloneCodebase: false
-          infrastructure:
-            type: KubernetesDirect
-            spec:
-              connectorRef: eksconnector
-              namespace: harness-delegate-ng
-              automountServiceAccountToken: true
-              os: Linux
-              nodeSelector: {}
-          caching:
-            enabled: false
-          sharedPaths:
-            - /tmp/lambda-artifacts
-          execution:
-            steps:
+                      echo "Artifacts built:"
+                      ls -lh lambda_package.zip layer_package.zip
               - step:
-                  name: Publish_Lambda_Layer
-                  identifier: Publish_Lambda_Layer
+                  name: Deploy_Lambda
+                  identifier: Deploy_Lambda
                   type: Run
                   spec:
                     connectorRef: eksconnector
@@ -111,52 +77,27 @@ pipeline:
                       ENV_NAME="<+pipeline.variables.environment>"
                       [ -z "$ENV_NAME" ] && ENV_NAME="dev"
 
+                      # Publish Layer
                       LAYER_NAME="hey-world-deps-$ENV_NAME"
                       echo "Publishing Lambda Layer: $LAYER_NAME"
-
-                      cp /tmp/lambda-artifacts/layer_package.zip .  # Ensure layer exists
-
                       LAYER_VERSION=$(aws lambda publish-layer-version \
                         --layer-name $LAYER_NAME \
                         --zip-file fileb://layer_package.zip \
                         --compatible-runtimes python3.13 \
-                        --description "Dependencies for hey-world Lambda - $ENV_NAME" \
+                        --description "Dependencies for Lambda - $ENV_NAME" \
                         --query Version --output text)
+                      echo "Layer version: $LAYER_VERSION"
 
-                      echo "Layer version published: $LAYER_VERSION"
-                      echo "LAYER_VERSION=$LAYER_VERSION" >> layer.env
-                    outputVariables:
-                      - name: LAYER_VERSION
-                        type: String
-                        value: LAYER_VERSION
-              - step:
-                  name: Deploy_Lambda_Function
-                  identifier: Deploy_Lambda_Function
-                  type: Run
-                  spec:
-                    connectorRef: eksconnector
-                    image: amazon/aws-cli:2.15.0
-                    shell: Sh
-                    envVariables:
-                      AWS_ACCESS_KEY_ID: <+secrets.getValue("account.ACCESS_KEY_ID")>
-                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
-                      AWS_DEFAULT_REGION: us-east-1
-                    command: |
-                      ENV_NAME="<+pipeline.variables.environment>"
-                      [ -z "$ENV_NAME" ] && ENV_NAME="dev"
-
+                      # Deploy Lambda function
                       FUNCTION_NAME="hey-world-demo-$ENV_NAME"
                       ZIP_FILE="lambda_package.zip"
-                      cp /tmp/lambda-artifacts/lambda_package.zip .  # Ensure package exists
-
-                      LAYER_VERSION="<+pipeline.stages.Deploy_Lambda.spec.execution.steps.Publish_Lambda_Layer.output.outputVariables.LAYER_VERSION>"
 
                       ROLE_ARN=""
                       if [ "$ENV_NAME" = "dev" ]; then
                         ROLE_ARN="arn:aws:iam::529088259986:role/lambda_exec_role_dev"
                       elif [ "$ENV_NAME" = "stage" ]; then
                         ROLE_ARN="arn:aws:iam::529088259986:role/lambda_exec_role_stage"
-                      elif [ "$ENV_NAME" = "prod" ]; then
+                      else
                         ROLE_ARN="arn:aws:iam::529088259986:role/lambda_exec_role_prod"
                       fi
 
@@ -168,7 +109,7 @@ pipeline:
                           --role $ROLE_ARN \
                           --handler devtest.lambda_function.lambda_handler \
                           --zip-file fileb://$ZIP_FILE \
-                          --layers arn:aws:lambda:us-east-1:529088259986:layer:hey-world-deps-$ENV_NAME:$LAYER_VERSION \
+                          --layers arn:aws:lambda:us-east-1:529088259986:layer:$LAYER_NAME:$LAYER_VERSION \
                           --timeout 30 \
                           --memory-size 256
                         aws lambda wait function-active --function-name $FUNCTION_NAME
@@ -180,16 +121,15 @@ pipeline:
                         aws lambda wait function-updated --function-name $FUNCTION_NAME
                         aws lambda update-function-configuration \
                           --function-name $FUNCTION_NAME \
-                          --layers arn:aws:lambda:us-east-1:529088259986:layer:hey-world-deps-$ENV_NAME:$LAYER_VERSION \
+                          --layers arn:aws:lambda:us-east-1:529088259986:layer:$LAYER_NAME:$LAYER_VERSION \
                           --timeout 30 \
                           --memory-size 256
                       fi
 
-                      FUNCTION_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.FunctionArn' --output text)
-                      echo "Lambda deployed: $FUNCTION_ARN"
+                      echo "Lambda deployed: $FUNCTION_NAME"
               - step:
-                  name: Test_Lambda_Function
-                  identifier: Test_Lambda_Function
+                  name: Test_Lambda
+                  identifier: Test_Lambda
                   type: Run
                   spec:
                     connectorRef: eksconnector
@@ -201,9 +141,8 @@ pipeline:
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
                       FUNCTION_NAME="hey-world-demo-<+pipeline.variables.environment>"
-                      echo "Testing Lambda function: $FUNCTION_NAME"
+                      echo "Testing Lambda: $FUNCTION_NAME"
                       RESPONSE=$(aws lambda invoke --function-name $FUNCTION_NAME --payload '{}' --cli-binary-format raw-in-base64-out lambda-response.json)
-                      echo "$RESPONSE"
                       cat lambda-response.json
                       if echo "$RESPONSE" | grep -q '"StatusCode": 200'; then
                         echo "✓ Lambda test successful"
