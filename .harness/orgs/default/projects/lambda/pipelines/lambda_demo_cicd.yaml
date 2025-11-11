@@ -98,17 +98,13 @@ pipeline:
                       # -----------------------------
                       # Save artifacts to shared path
                       # -----------------------------
-                      mkdir -p /tmp/lambda-artifacts
-                      cp lambda_package.zip /tmp/lambda-artifacts/
-                      cp layer_package.zip /tmp/lambda-artifacts/
+                      mkdir -p $HARNESS_ARTIFACT_DIR
+                      cp lambda_package.zip $HARNESS_ARTIFACT_DIR/
+                      cp layer_package.zip $HARNESS_ARTIFACT_DIR/
 
                       # Verify artifacts
-                      ls -lh /tmp/lambda-artifacts/
-                    artifacts:
-                      primary:
-                        paths:
-                          - /tmp/lambda-artifacts/lambda_package.zip
-                          - /tmp/lambda-artifacts/layer_package.zip
+                      # Verify artifacts
+                      ls -lh $HARNESS_ARTIFACT_DIR/
             "":
               type: Run
               name: package_lambda
@@ -178,9 +174,9 @@ pipeline:
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |-
-                      echo "Downloading build artifacts..."
-                      cp $ARTIFACTS_DIR/lambda_package.zip .
-                      cp $ARTIFACTS_DIR/layer_package.zip .
+                      echo "Copying artifacts to current directory..."
+                      cp $HARNESS_ARTIFACT_DIR/lambda_package.zip .
+                      cp $HARNESS_ARTIFACT_DIR/layer_package.zip .
 
                       echo "✓ Artifacts ready:"
                       ls -lh *.zip
