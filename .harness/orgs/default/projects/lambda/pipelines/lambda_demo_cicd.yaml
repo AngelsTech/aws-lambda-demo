@@ -38,8 +38,8 @@ pipeline:
           execution:
             steps:
               - step:
-                  name: Install_Dependencies
-                  identifier: Install_Dependencies
+                  name: Package_Artifacts
+                  identifier: Package_Artifacts
                   type: Run
                   spec:
                     connectorRef: eksconnector
@@ -47,39 +47,9 @@ pipeline:
                     shell: Sh
                     command: |
                       echo "Installing system dependencies..."
-                      apt-get update && apt-get install -y zip
+                      apt-get update && apt-get install -y zip unzip
 
-                      echo "Installing Python dependencies..."
-                      mkdir -p python
-                      pip install -r test/devtest/requirements.txt -t python
-                      zip -r layer_package.zip python
-
-                      # Save to shared path for Deploy stage
-                      mkdir -p /tmp/lambda-artifacts
-                      cp layer_package.zip /tmp/lambda-artifacts/
-
-                      echo "Layer package created successfully"
-                      ls -lh layer_package.zip
-                    outputVariables:
-                      - name: LAYER_PACKAGE
-                        type: String
-                        value: layer_package.zip
-              - step:
-                  type: Run
-                  name: package
-                  identifier: package
-                  spec:
-                    connectorRef: eksconnector
-                    image: python:3.13
-                    shell: Sh
-                    command: |-
-                      # Install system dependencies
-                      apt-get update && apt-get install -y zip unzip python3-pip
-
-                      # Clean previous artifacts
-                      rm -rf lambda_package.zip layer_package.zip python
-
-                      # Package Lambda function
+                      echo "=== Packaging Lambda function ==="
                       cd test
                       zip -r ../lambda_package.zip devtest \
                         -x "**/.git/*" \
@@ -89,67 +59,18 @@ pipeline:
                         -x "**/*.pyc"
                       cd ..
 
-                      # Package Lambda layer
-                      rm -rf python
+                      echo "=== Building Lambda layer ==="
                       mkdir -p python
                       pip install -r test/devtest/requirements.txt -t python
                       zip -r layer_package.zip python
 
-                      # Ensure artifact dir exists
-                      : ${HARNESS_ARTIFACT_DIR:=/tmp/harness-artifacts}
-                      mkdir -p "$HARNESS_ARTIFACT_DIR"
+                      echo "=== Saving artifacts ==="
+                      mkdir -p /tmp/lambda-artifacts
+                      cp lambda_package.zip /tmp/lambda-artifacts/
+                      cp layer_package.zip /tmp/lambda-artifacts/
 
-                      # Copy artifacts
-                      cp lambda_package.zip "$HARNESS_ARTIFACT_DIR"/
-                      cp layer_package.zip "$HARNESS_ARTIFACT_DIR"/
-
-                      # Verify artifacts
-                      ls -lh "$HARNESS_ARTIFACT_DIR"/
-                    artifacts:
-                      primary:
-                        paths:
-                          - /tmp/harness-artifacts/lambda_package.zip
-                          - /tmp/harness-artifacts/layer_package.zip
-            "":
-              type: Run
-              name: package_lambda
-              identifier: package_lambda
-              spec:
-                connectorRef: awsconnector
-                image: python:3.13
-                shell: Sh
-                command: |-
-                  # Install system dependencies
-                  apt-get update && apt-get install -y zip unzip python3-pip
-
-                  # -----------------------------
-                  # Package Lambda function
-                  # -----------------------------
-                  cd test
-                  zip -r ../lambda_package.zip devtest \
-                    -x "**/.git/*" \
-                    -x "**/README.md" \
-                    -x "**/Jenkinsfile" \
-                    -x "**/__pycache__/*" \
-                    -x "**/*.pyc"
-                  cd ..
-
-                  # -----------------------------
-                  # Package Lambda layer
-                  # -----------------------------
-                  mkdir -p python
-                  pip install -r test/devtest/requirements.txt -t python
-                  zip -r layer_package.zip python
-
-                  # -----------------------------
-                  # Save artifacts to shared path
-                  # -----------------------------
-                  mkdir -p /tmp/lambda-artifacts
-                  cp lambda_package.zip /tmp/lambda-artifacts/
-                  cp layer_package.zip /tmp/lambda-artifacts/
-
-                  # Verify artifacts
-                  ls -lh /tmp/lambda-artifacts/
+                      echo "=== Artifacts created ==="
+                      ls -lh /tmp/lambda-artifacts/
     - stage:
         name: Deploy_Lambda
         identifier: Deploy_Lambda
@@ -171,27 +92,23 @@ pipeline:
           execution:
             steps:
               - step:
-                  name: Download_Artifacts_From_Build
-                  identifier: Download_Artifacts_From_Build
+                  name: Verify_Artifacts
+                  identifier: Verify_Artifacts
                   type: Run
                   spec:
                     connectorRef: eksconnector
-                    image: amazon/aws-cli:2.15.0
+                    image: busybox:latest
                     shell: Sh
-                    command: |-
-                      # Ensure HARNESS_ARTIFACT_DIR is set
-                      : ${HARNESS_ARTIFACT_DIR:=/tmp/harness-artifacts}
-
-                      echo "Copying artifacts to current directory..."
-                      if [ -f "$HARNESS_ARTIFACT_DIR/lambda_package.zip" ] && [ -f "$HARNESS_ARTIFACT_DIR/layer_package.zip" ]; then
-                          cp $ARTIFACTS_DIR/lambda_package.zip .
-                          cp $ARTIFACTS_DIR/layer_package.zip .
-                          echo "Artifacts ready:"
-                          ls -lh *.zip
-                      else
-                          echo "ERROR: Artifacts not found in $HARNESS_ARTIFACT_DIR"
-                          exit 1
+                    command: |
+                      echo "Checking for build artifacts..."
+                      if [ ! -f "/tmp/lambda-artifacts/layer_package.zip" ] || [ ! -f "/tmp/lambda-artifacts/lambda_package.zip" ]; then
+                        echo "ERROR: Build artifacts not found!"
+                        ls -la /tmp/lambda-artifacts/ || echo "Directory does not exist"
+                        exit 1
                       fi
+
+                      echo "✓ Artifacts found:"
+                      ls -lh /tmp/lambda-artifacts/
               - step:
                   name: Publish_Lambda_Layer
                   identifier: Publish_Lambda_Layer
@@ -205,7 +122,10 @@ pipeline:
                       AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
-                      # Get environment from pipeline variable or default to dev
+                      # Copy artifacts to working directory
+                      cp /tmp/lambda-artifacts/layer_package.zip .
+                      cp /tmp/lambda-artifacts/lambda_package.zip .
+
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
                         ENV_NAME="dev"
@@ -235,9 +155,16 @@ pipeline:
                     connectorRef: eksconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: AKIAXWMA6E6JEQVTS65M
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
+                      AWS_DEFAULT_REGION: us-east-1
                     command: |
-                      export AWS_DEFAULT_REGION=us-east-1
-                      # Get environment from pipeline variable or default to dev
+                      # Ensure artifacts are in current directory
+                      if [ ! -f "lambda_package.zip" ]; then
+                        cp /tmp/lambda-artifacts/lambda_package.zip .
+                      fi
+
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
                         ENV_NAME="dev"
@@ -277,31 +204,28 @@ pipeline:
                           --timeout 30 \
                           --memory-size 256 \
                           --description "Hey World Lambda function - $ENV_NAME environment"
-                       
+                        
                         echo "Waiting for function to become active..."
                         aws lambda wait function-active --function-name $FUNCTION_NAME
                         echo "Function created successfully"
                       else
                         echo "Updating existing Lambda function..."
-                        # Update function code
                         aws lambda update-function-code \
                           --function-name $FUNCTION_NAME \
                           --zip-file fileb://$ZIP_FILE
-                       
+                        
                         echo "Waiting for function update to complete..."
                         aws lambda wait function-updated --function-name $FUNCTION_NAME
-                       
-                        # Update function configuration
+                        
                         aws lambda update-function-configuration \
                           --function-name $FUNCTION_NAME \
                           --layers arn:aws:lambda:us-east-1:529088259986:layer:hey-world-deps-$ENV_NAME:$LAYER_VERSION \
                           --timeout 30 \
                           --memory-size 256
-                       
+                        
                         echo "Function updated successfully"
                       fi
 
-                      # Get function ARN for output
                       FUNCTION_ARN=$(aws lambda get-function \
                         --function-name $FUNCTION_NAME \
                         --query 'Configuration.FunctionArn' \
@@ -316,9 +240,11 @@ pipeline:
                     connectorRef: eksconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: AKIAXWMA6E6JEQVTS65M
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
+                      AWS_DEFAULT_REGION: us-east-1
                     command: |
-                      export AWS_DEFAULT_REGION=us-east-1
-                      # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
                         ENV_NAME="dev"
@@ -336,7 +262,6 @@ pipeline:
                         --state ENABLED \
                         --description "Trigger hey-world Lambda every 5 minutes - $ENV_NAME"
 
-                      # Get Lambda function ARN
                       FUNCTION_ARN=$(aws lambda get-function \
                         --function-name $FUNCTION_NAME \
                         --query 'Configuration.FunctionArn' \
@@ -347,13 +272,11 @@ pipeline:
                         --rule $RULE_NAME \
                         --targets "Id"="1","Arn"="$FUNCTION_ARN"
 
-                      # Get rule ARN
                       SOURCE_ARN=$(aws events describe-rule \
                         --name $RULE_NAME \
                         --query 'Arn' \
                         --output text)
 
-                      # Add permission for CloudWatch to invoke Lambda
                       echo "Granting CloudWatch permission to invoke Lambda..."
                       if ! aws lambda get-policy --function-name $FUNCTION_NAME 2>/dev/null | grep -q $STATEMENT_ID; then
                         aws lambda add-permission \
@@ -376,9 +299,11 @@ pipeline:
                     connectorRef: eksconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: AKIAXWMA6E6JEQVTS65M
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("aws_secret_access_key")>
+                      AWS_DEFAULT_REGION: us-east-1
                     command: |
-                      export AWS_DEFAULT_REGION=us-east-1
-                      # Get environment from pipeline variable or default to dev
                       ENV_NAME="<+pipeline.variables.environment>"
                       if [ -z "$ENV_NAME" ] || [ "$ENV_NAME" = "null" ]; then
                         ENV_NAME="dev"
@@ -399,10 +324,9 @@ pipeline:
                       echo "Function output:"
                       cat lambda-response.json
 
-                      # Check if invocation was successful
                       if echo "$RESPONSE" | grep -q '"StatusCode": 200'; then
-                        echo "Lambda test successful!"
+                        echo "✓ Lambda test successful!"
                       else
-                        echo "Lambda test failed!"
+                        echo "✗ Lambda test failed!"
                         exit 1
                       fi
