@@ -183,7 +183,7 @@ pipeline:
                   identifier: Deploy_Lambda_Function
                   type: Run
                   spec:
-                    connectorRef: awsconnector
+                    connectorRef: eksconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |
@@ -264,7 +264,7 @@ pipeline:
                   identifier: Setup_CloudWatch_Schedule
                   type: Run
                   spec:
-                    connectorRef: awsconnector
+                    connectorRef: eksconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |
@@ -324,7 +324,7 @@ pipeline:
                   identifier: Test_Lambda_Function
                   type: Run
                   spec:
-                    connectorRef: awsconnector
+                    connectorRef: eksconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |
