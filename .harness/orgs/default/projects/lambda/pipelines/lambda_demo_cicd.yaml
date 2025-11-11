@@ -32,6 +32,8 @@ pipeline:
               os: Linux
           caching:
             enabled: false
+          sharedPaths:
+            - /tmp/lambda-artifacts
           execution:
             steps:
               - step:
@@ -43,7 +45,7 @@ pipeline:
                     image: python:3.13
                     shell: Sh
                     command: |
-                      echo "Installing system dependencies..."
+                      echo "Installing dependencies..."
                       apt-get update && apt-get install -y zip unzip
 
                       echo "Packaging Lambda function..."
@@ -61,13 +63,18 @@ pipeline:
                       pip install -r test/devtest/requirements.txt -t python
                       zip -r layer_package.zip python
 
+                      echo "Saving artifacts..."
+                      mkdir -p /tmp/lambda-artifacts
+                      cp lambda_package.zip /tmp/lambda-artifacts/
+                      cp layer_package.zip /tmp/lambda-artifacts/
+
                       echo "Artifacts created:"
-                      ls -lh lambda_package.zip layer_package.zip
+                      ls -lh /tmp/lambda-artifacts/
                     artifacts:
                       primary:
                         paths:
-                          - lambda_package.zip
-                          - layer_package.zip
+                          - /tmp/lambda-artifacts/lambda_package.zip
+                          - /tmp/lambda-artifacts/layer_package.zip
     - stage:
         name: Deploy_Lambda
         identifier: Deploy_Lambda
@@ -84,6 +91,8 @@ pipeline:
               os: Linux
           caching:
             enabled: false
+          sharedPaths:
+            - /tmp/lambda-artifacts
           execution:
             steps:
               - step:
@@ -95,9 +104,9 @@ pipeline:
                     image: busybox:latest
                     shell: Sh
                     command: |
-                      echo "Copying artifacts from Harness..."
-                      cp $ARTIFACTS_DIR/lambda_package.zip .
-                      cp $ARTIFACTS_DIR/layer_package.zip .
+                      echo "Copying artifacts from shared path..."
+                      cp /tmp/lambda-artifacts/lambda_package.zip .
+                      cp /tmp/lambda-artifacts/layer_package.zip .
                       ls -lh
               - step:
                   name: Publish_Lambda_Layer
@@ -144,7 +153,8 @@ pipeline:
                       AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
-                      [ ! -f "lambda_package.zip" ] && cp $ARTIFACTS_DIR/lambda_package.zip .
+                      [ ! -f "lambda_package.zip" ] && cp /tmp/lambda-artifacts/lambda_package.zip .
+
                       ENV_NAME="<+pipeline.variables.environment>"
                       [ -z "$ENV_NAME" ] && ENV_NAME="dev"
 
@@ -164,6 +174,7 @@ pipeline:
                       fi
 
                       if ! aws lambda get-function --function-name $FUNCTION_NAME > /dev/null 2>&1; then
+                        echo "Creating Lambda function..."
                         aws lambda create-function \
                           --function-name $FUNCTION_NAME \
                           --runtime python3.13 \
@@ -175,6 +186,7 @@ pipeline:
                           --memory-size 256
                         aws lambda wait function-active --function-name $FUNCTION_NAME
                       else
+                        echo "Updating Lambda function..."
                         aws lambda update-function-code \
                           --function-name $FUNCTION_NAME \
                           --zip-file fileb://$ZIP_FILE
@@ -187,6 +199,49 @@ pipeline:
                       fi
                       FUNCTION_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.FunctionArn' --output text)
                       echo "Lambda deployed: $FUNCTION_ARN"
+              - step:
+                  name: Setup_CloudWatch_Schedule
+                  identifier: Setup_CloudWatch_Schedule
+                  type: Run
+                  spec:
+                    connectorRef: eksconnector
+                    image: amazon/aws-cli:2.15.0
+                    shell: Sh
+                    envVariables:
+                      AWS_ACCESS_KEY_ID: <+secrets.getValue("account.ACCESS_KEY_ID")>
+                      AWS_SECRET_ACCESS_KEY: <+secrets.getValue("account.SECRET_ACCESS_KEY")>
+                      AWS_DEFAULT_REGION: us-east-1
+                    command: |
+                      ENV_NAME="<+pipeline.variables.environment>"
+                      [ -z "$ENV_NAME" ] && ENV_NAME="dev"
+
+                      FUNCTION_NAME="hey-world-demo-$ENV_NAME"
+                      RULE_NAME="hello-world-schedule-$ENV_NAME"
+                      SCHEDULE="rate(5 minutes)"
+                      STATEMENT_ID="cw-invoke-$ENV_NAME"
+
+                      echo "Creating CloudWatch rule: $RULE_NAME"
+                      aws events put-rule \
+                        --name $RULE_NAME \
+                        --schedule-expression "$SCHEDULE" \
+                        --state ENABLED \
+                        --description "Trigger hey-world Lambda every 5 minutes - $ENV_NAME"
+
+                      FUNCTION_ARN=$(aws lambda get-function --function-name $FUNCTION_NAME --query 'Configuration.FunctionArn' --output text)
+                      aws events put-targets --rule $RULE_NAME --targets "Id"="1","Arn"="$FUNCTION_ARN"
+
+                      SOURCE_ARN=$(aws events describe-rule --name $RULE_NAME --query 'Arn' --output text)
+                      if ! aws lambda get-policy --function-name $FUNCTION_NAME 2>/dev/null | grep -q $STATEMENT_ID; then
+                        aws lambda add-permission \
+                          --function-name $FUNCTION_NAME \
+                          --statement-id $STATEMENT_ID \
+                          --action 'lambda:InvokeFunction' \
+                          --principal events.amazonaws.com \
+                          --source-arn $SOURCE_ARN
+                        echo "Permission added"
+                      else
+                        echo "Permission already exists"
+                      fi
               - step:
                   name: Test_Lambda_Function
                   identifier: Test_Lambda_Function
@@ -201,7 +256,7 @@ pipeline:
                       AWS_DEFAULT_REGION: us-east-1
                     command: |
                       FUNCTION_NAME="hey-world-demo-<+pipeline.variables.environment>"
-                      echo "Testing Lambda: $FUNCTION_NAME"
+                      echo "Testing Lambda function: $FUNCTION_NAME"
                       RESPONSE=$(aws lambda invoke --function-name $FUNCTION_NAME --payload '{}' --cli-binary-format raw-in-base64-out lambda-response.json)
                       echo "$RESPONSE"
                       cat lambda-response.json
