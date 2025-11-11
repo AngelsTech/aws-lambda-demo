@@ -125,7 +125,7 @@ pipeline:
                   identifier: Download_Artifacts_From_Build
                   type: Run
                   spec:
-                    connectorRef: awsconnector
+                    connectorRef: eksconnector
                     image: amazon/aws-cli:2.15.0
                     shell: Sh
                     command: |-
